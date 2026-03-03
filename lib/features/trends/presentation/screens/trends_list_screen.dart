@@ -6,6 +6,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
 import '../../../auth/data/models.dart';
+import 'package:dio/dio.dart';
 
 final _allTrendsProvider = FutureProvider.family<List<TrendModel>, Map<String, String>>(
   (ref, params) async {
@@ -126,16 +127,37 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
                     itemBuilder: (ctx, i) => _TrendCard(trend: trends[i]),
                   ),
                   loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (e, _) => Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.trending_down_rounded, size: 60, color: AppColors.textMuted),
-                        const SizedBox(height: 12),
-                        const Text('No trends found'),
-                      ],
-                    ),
-                  ),
+                  error: (err, stack) {
+                    debugPrint('Error loading trends: $err');
+                    String errorMessage = 'Failed to load trends';
+                    if (err is DioException) {
+                      errorMessage = err.response?.data?.toString() ?? err.message ?? 'Network error';
+                    } else {
+                      errorMessage = err.toString();
+                    }
+                    return Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.warning_rounded, size: 60, color: AppColors.error),
+                          const SizedBox(height: 12),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                            child: Text(
+                              errorMessage,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: AppColors.textMuted),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: () => ref.invalidate(_allTrendsProvider(params)),
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ),
             ],

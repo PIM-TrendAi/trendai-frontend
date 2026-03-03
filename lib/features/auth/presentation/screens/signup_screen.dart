@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
 import '../../auth_repository.dart';
+import 'package:dio/dio.dart';
 
 class SignUpScreen extends ConsumerStatefulWidget {
   const SignUpScreen({super.key});
@@ -48,8 +49,32 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     if (auth.hasValue && auth.value != null) {
       context.go('/category-selection');
     } else if (auth.hasError) {
+      String errorMessage = 'An unexpected error occurred';
+      if (auth.error is DioException) {
+        final dioErr = auth.error as DioException;
+        final responseData = dioErr.response?.data;
+        if (responseData is Map<String, dynamic>) {
+          if (responseData.containsKey('detail')) {
+            errorMessage = responseData['detail'].toString();
+          } else if (responseData.containsKey('non_field_errors')) {
+            errorMessage = (responseData['non_field_errors'] as List).first.toString();
+          } else if (responseData.containsKey('email')) {
+            errorMessage = (responseData['email'] as List).first.toString();
+          } else if (responseData.containsKey('error')) {
+            errorMessage = responseData['error'].toString();
+          } else if (responseData.isNotEmpty) {
+            final firstVal = responseData.values.first;
+            errorMessage = firstVal is List ? firstVal.first.toString() : firstVal.toString();
+          }
+        } else {
+          errorMessage = dioErr.message ?? 'Network error';
+        }
+      } else {
+        errorMessage = auth.error.toString();
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(auth.error.toString()), backgroundColor: AppColors.error),
+        SnackBar(content: Text(errorMessage), backgroundColor: AppColors.error),
       );
     }
   }

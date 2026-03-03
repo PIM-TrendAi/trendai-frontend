@@ -199,6 +199,7 @@
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				53B407B2DAF86DD38A92CB7C /* [CP] Embed Pods Frameworks */,
+				EAA1234F1E23456700ABCDEF /* Strip Finder metadata */,
 			);
 			buildRules = (
 			);
@@ -339,6 +340,21 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build";
+		};
+		EAA1234F1E23456700ABCDEF /* Strip Finder metadata */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Strip Finder metadata";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Remove dot-underscore files and strip extended attributes from built products\nfind \"$BUILT_PRODUCTS_DIR\" -name '._*' -delete || true\n/usr/bin/xattr -rc \"$BUILT_PRODUCTS_DIR\" || true\n/usr/bin/xattr -rc \"${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}\" || true\n";
+			showEnvVarsInLog = 0;
 		};
 		D2C71418B2276AC2B9C44F35 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;

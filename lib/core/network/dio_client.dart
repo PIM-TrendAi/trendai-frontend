@@ -1,12 +1,14 @@
 /// TrendAI API — Dio HTTP client with JWT auth interceptor.
 /// Automatically injects Bearer token and handles 401 by refreshing.
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../storage/secure_storage.dart';
 
 // Change to your machine's IP when testing on physical device
 // Android emulator: 10.0.2.2, iOS simulator: 127.0.0.1
-const _baseUrl = 'http://10.0.2.2:8000/api';
+final _baseUrl = Platform.isAndroid ? 'http://10.0.2.2:8000/api' : 'http://127.0.0.1:8000/api';
 
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(BaseOptions(
@@ -31,6 +33,10 @@ class _AuthInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
+    if (options.path.contains('/auth/refresh')) {
+      return handler.next(options);
+    }
+
     final storage = _ref.read(secureStorageProvider);
     final token = await storage.readAccessToken();
     if (token != null) {
@@ -44,6 +50,11 @@ class _AuthInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
+    if (err.requestOptions.path.contains('/auth/refresh')) {
+      await _ref.read(secureStorageProvider).clearAll();
+      return handler.next(err);
+    }
+
     if (err.response?.statusCode == 401) {
       // Try refreshing the token
       try {

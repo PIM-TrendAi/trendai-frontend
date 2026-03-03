@@ -28,12 +28,14 @@ class TrendAIAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.85),
+        color: isDark ? const Color(0xFF0F111E) : Colors.white,
         border: Border(
           bottom: BorderSide(
-            color: AppColors.primary.withValues(alpha: 0.20),
+             color: isDark ? Colors.white.withValues(alpha: 0.10) : Colors.black.withValues(alpha: 0.05),
           ),
         ),
       ),
@@ -50,13 +52,13 @@ class TrendAIAppBar extends StatelessWidget implements PreferredSizeWidget {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.08),
+                      color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.12),
+                        color: isDark ? Colors.white.withValues(alpha: 0.10) : Colors.grey.shade200,
                       ),
                     ),
-                    child: const Icon(Icons.arrow_back_ios_new, size: 16),
+                    child: Icon(Icons.arrow_back_ios_new, size: 16, color: isDark ? Colors.white : AppColors.textLight),
                   ),
                 )
               else
@@ -67,17 +69,28 @@ class TrendAIAppBar extends StatelessWidget implements PreferredSizeWidget {
                   children: [
                     Text(
                       title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5,
                           ),
                     ),
-                    if (subtitle != null)
-                      Text(
-                        subtitle!,
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: AppColors.textMuted,
-                            ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.auto_awesome_rounded, size: 12, color: AppColors.primary),
+                          const SizedBox(width: 4),
+                          Text(
+                            subtitle!,
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: AppColors.textMuted,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                          ),
+                        ],
                       ),
+                    ],
                   ],
                 ),
               ),
@@ -109,18 +122,25 @@ class TrendAIBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
+        color: isDark ? null : Colors.white.withValues(alpha: 0.8),
         borderRadius: BorderRadius.circular(40),
-        gradient: LinearGradient(
-          colors: [
-            Colors.white.withValues(alpha: 0.08),
-            Colors.white.withValues(alpha: 0.04),
-          ],
-        ),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        gradient: isDark
+            ? LinearGradient(
+                colors: [
+                  Colors.white.withValues(alpha: 0.08),
+                  Colors.white.withValues(alpha: 0.04),
+                ],
+              )
+            : null,
+        border: Border.all(
+            color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.05)),
+        boxShadow: isDark ? null : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 20)],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -138,10 +158,10 @@ class TrendAIBottomNav extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
+                   Icon(
                     _icons[i],
                     size: 22,
-                    color: isActive ? Colors.white : AppColors.textMuted,
+                    color: isActive ? Colors.white : (isDark ? AppColors.textMuted : AppColors.textMuted.withValues(alpha: 0.7)),
                   ),
                   const SizedBox(height: 2),
                   Text(
