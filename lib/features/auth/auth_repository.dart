@@ -1,5 +1,4 @@
 /// Auth repository — wraps Dio calls for register, login, profile.
-library;
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/dio_client.dart';

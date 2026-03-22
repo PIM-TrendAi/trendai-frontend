@@ -1,6 +1,5 @@
 /// Login screen — email/password form, social login buttons, form validation.
 /// Matches Figma: dark bg, glass inputs, gradient submit button.
-library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -94,7 +93,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               fontWeight: FontWeight.w800,
                             )),
                     const SizedBox(height: 8),
-                    const Text('Sign in to continue creating',
+                    Text('Sign in to continue creating',
                         style: TextStyle(color: AppColors.textMuted, fontSize: 15)),
                     const SizedBox(height: 40),
 
@@ -126,9 +125,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       validator: (v) =>
                           v == null || v.length < 6 ? 'Password too short' : null,
                     ),
-                    const SizedBox(height: 16),
-
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
 
                     // Remember me + forgot password
                     Row(
@@ -143,13 +140,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(4)),
                             ),
-                            const Text('Remember me',
+                            Text('Remember me',
                                 style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
                           ],
                         ),
                         TextButton(
                           onPressed: () {},
-                          child: const Text('Forgot password?',
+                          child: Text('Forgot password?',
                               style: TextStyle(color: AppColors.primary, fontSize: 13)),
                         ),
                       ],
@@ -165,10 +162,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(height: 28),
 
                     // Divider
-                    const Row(children: [
+                    Row(children: [
                       Expanded(child: Divider(color: Colors.white12)),
                       Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Text('or', style: TextStyle(color: AppColors.textMuted)),
                       ),
                       Expanded(child: Divider(color: Colors.white12)),
@@ -193,11 +190,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text("Don't have an account? ",
+                        Text("Don't have an account? ",
                             style: TextStyle(color: AppColors.textMuted)),
                         GestureDetector(
                           onTap: () => context.go('/signup'),
-                          child: const Text('Sign Up',
+                          child: Text('Sign Up',
                               style: TextStyle(
                                   color: AppColors.primary, fontWeight: FontWeight.w600)),
                         ),

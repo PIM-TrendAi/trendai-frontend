@@ -1,6 +1,5 @@
 /// GoRouter configuration for TrendAI.
 /// Checks token in SecureStorage for auth guard — if no token, redirects to splash.
-library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
@@ -12,9 +11,6 @@ import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/trends/presentation/screens/trends_list_screen.dart';
 import '../../features/trends/presentation/screens/trend_detail_screen.dart';
 import '../../features/ai_generator/presentation/ai_generator_screen.dart';
-import '../../features/n8n/presentation/screens/niche_picker_screen.dart';
-import '../../features/n8n/presentation/screens/workflow_status_screen.dart';
-import '../../features/n8n/presentation/screens/my_videos_screen.dart';
 import '../../features/analytics/presentation/analytics_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../storage/secure_storage.dart';
@@ -50,12 +46,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => TrendDetailScreen(id: int.parse(state.pathParameters['id']!)),
       ),
       GoRoute(path: '/ai-generator', builder: (_, __) => const AIGeneratorScreen()),
-      GoRoute(path: '/n8n-picker', builder: (_, __) => const NichePickerScreen()),
-      GoRoute(
-        path: '/n8n-status/:id',
-        builder: (_, state) => WorkflowStatusScreen(sessionId: state.pathParameters['id']!),
-      ),
-      GoRoute(path: '/my-videos', builder: (_, __) => const MyVideosScreen()),
       GoRoute(path: '/analytics', builder: (_, __) => const AnalyticsScreen()),
       GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
     ],

@@ -1,7 +1,6 @@
 /// SecureStorage service wrapping flutter_secure_storage.
 /// Stores JWT access + refresh tokens with AES encryption on Android,
 /// Keychain on iOS.
-library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 

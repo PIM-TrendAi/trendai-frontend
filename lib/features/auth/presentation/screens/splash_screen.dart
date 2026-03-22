@@ -1,5 +1,4 @@
 /// Splash screen — shows app logo for 2s then navigates to onboarding/dashboard.
-library;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -90,7 +89,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'AI-Powered Viral Trend Tracker',
                     style: TextStyle(color: AppColors.textMuted, fontSize: 14),
                   ),

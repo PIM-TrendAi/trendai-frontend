@@ -1,21 +1,18 @@
 /// TrendAI API — Dio HTTP client with JWT auth interceptor.
 /// Automatically injects Bearer token and handles 401 by refreshing.
-library;
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../storage/secure_storage.dart';
 
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-
-// Provides the server URL, trying .env first, then falling back to localhost
-final baseUrlProvider = StateProvider<String>((ref) {
-  return dotenv.env['API_BASE_URL'] ?? 'http://172.20.16.1:8000/api';
-});
+// Change to your machine's IP when testing on physical device
+// Android emulator: 10.0.2.2, iOS simulator: 127.0.0.1
+final _baseUrl = Platform.isAndroid ? 'http://10.0.2.2:8000/api' : 'http://127.0.0.1:8000/api';
 
 final dioProvider = Provider<Dio>((ref) {
-  final baseUrl = ref.watch(baseUrlProvider);
   final dio = Dio(BaseOptions(
-    baseUrl: baseUrl,
+    baseUrl: _baseUrl,
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 15),
     headers: {'Content-Type': 'application/json'},

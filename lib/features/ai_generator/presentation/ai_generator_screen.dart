@@ -1,6 +1,5 @@
 /// AI Script Generator screen — prompt + style/duration/platform selectors,
 /// calls POST /api/scripts/generate/ and displays the structured result.
-library;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -67,7 +66,7 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
           const AnimatedParticleBackground(),
           Column(
             children: [
-              const TrendAIAppBar(title: 'AI Script Generator', subtitle: 'Powered by TrendAI'),
+              TrendAIAppBar(title: 'AI Script Generator', subtitle: 'Powered by TrendAI'),
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
@@ -79,10 +78,10 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Row(children: [
+                            Row(children: [
                               Icon(Icons.lightbulb_outline_rounded, color: AppColors.primary),
-                              SizedBox(width: 8),
-                              Text('Your Idea', style: TextStyle(fontWeight: FontWeight.w700)),
+                              const SizedBox(width: 8),
+                              const Text('Your Idea', style: TextStyle(fontWeight: FontWeight.w700)),
                             ]),
                             const SizedBox(height: 12),
                             TextField(
@@ -99,17 +98,17 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
                       const SizedBox(height: 16),
 
                       // Style
-                      const _SectionLabel(label: '🎬 Style'),
+                      _SectionLabel(label: '🎬 Style'),
                       _ChipRow(options: styles, selected: _style, onSelect: (v) => setState(() => _style = v)),
                       const SizedBox(height: 16),
 
                       // Duration
-                      const _SectionLabel(label: '⏱ Duration'),
+                      _SectionLabel(label: '⏱ Duration'),
                       _ChipRow(options: durations, selected: _duration, onSelect: (v) => setState(() => _duration = v)),
                       const SizedBox(height: 16),
 
                       // Platform
-                      const _SectionLabel(label: '📱 Platform'),
+                      _SectionLabel(label: '📱 Platform'),
                       _ChipRow(options: platforms, selected: _platform, onSelect: (v) => setState(() => _platform = v)),
                       const SizedBox(height: 24),
 
@@ -131,9 +130,9 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
               ),
             ],
           ),
-          const Positioned(
+          Positioned(
             left: 0, right: 0, bottom: 0,
-            child: TrendAIBottomNav(currentIndex: 2),
+            child: const TrendAIBottomNav(currentIndex: 2),
           ),
         ],
       ),
@@ -205,10 +204,10 @@ class _ScriptOutput extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Row(children: [
+        Row(children: [
           Icon(Icons.auto_awesome_rounded, color: AppColors.primary),
-          SizedBox(width: 8),
-          GradientText('Your Generated Script', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+          const SizedBox(width: 8),
+          GradientText('Your Generated Script', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
         ]),
         const SizedBox(height: 16),
         _Block(label: '🎣 Hook', content: script.hook, context: context, onCopy: _copy),
@@ -232,7 +231,7 @@ class _ScriptOutput extends StatelessWidget {
                     color: AppColors.primary.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text(h, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 12)),
+                  child: Text(h, style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 12)),
                 )).toList(),
               ),
             ],

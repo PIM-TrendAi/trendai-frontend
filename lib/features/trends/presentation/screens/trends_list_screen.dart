@@ -1,5 +1,4 @@
 /// TrendsList screen — filterable/sortable list of viral trends.
-library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -47,7 +46,7 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
           const AnimatedParticleBackground(),
           Column(
             children: [
-              const TrendAIAppBar(title: 'Trending Now', subtitle: 'Real-time • Multi-platform'),
+              TrendAIAppBar(title: 'Trending Now', subtitle: 'Real-time • Multi-platform'),
 
               // Platform filter chips
               SizedBox(
@@ -87,7 +86,7 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
                 child: Row(
                   children: [
-                    const Icon(Icons.filter_list_rounded, color: AppColors.primary, size: 18),
+                    Icon(Icons.filter_list_rounded, color: AppColors.primary, size: 18),
                     const SizedBox(width: 8),
                     const Text('Sort by', style: TextStyle(fontWeight: FontWeight.w600)),
                     const Spacer(),
@@ -140,14 +139,14 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.warning_rounded, size: 60, color: AppColors.error),
+                          Icon(Icons.warning_rounded, size: 60, color: AppColors.error),
                           const SizedBox(height: 12),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 24.0),
                             child: Text(
                               errorMessage,
                               textAlign: TextAlign.center,
-                              style: const TextStyle(color: AppColors.textMuted),
+                              style: TextStyle(color: AppColors.textMuted),
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -163,9 +162,9 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
               ),
             ],
           ),
-          const Positioned(
+          Positioned(
             left: 0, right: 0, bottom: 0,
-            child: TrendAIBottomNav(currentIndex: 1),
+            child: const TrendAIBottomNav(currentIndex: 1),
           ),
         ],
       ),
@@ -206,7 +205,7 @@ class _TrendCard extends StatelessWidget {
                         PlatformBadge(platform: trend.platform),
                         const SizedBox(width: 8),
                         Text('${trend.views} views',
-                            style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                            style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
                       ]),
                     ],
                   ),
@@ -215,12 +214,12 @@ class _TrendCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.arrow_upward_rounded, color: AppColors.success, size: 16),
+                        Icon(Icons.arrow_upward_rounded, color: AppColors.success, size: 16),
                         Text('${trend.growth.toInt()}%',
-                            style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.w700)),
+                            style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w700)),
                       ],
                     ),
-                    const Text('Growth', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                    Text('Growth', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
                   ],
                 ),
               ],
@@ -228,7 +227,7 @@ class _TrendCard extends StatelessWidget {
             const SizedBox(height: 12),
             Row(
               children: [
-                const Text('Trend Score', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                Text('Trend Score', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
                 const Spacer(),
                 GradientText('${trend.score.toInt()}%',
                     style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -240,7 +239,7 @@ class _TrendCard extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: trend.score / 100,
                 backgroundColor: Colors.white.withValues(alpha: 0.06),
-                valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+                valueColor: AlwaysStoppedAnimation(AppColors.primary),
                 minHeight: 6,
               ),
             ),

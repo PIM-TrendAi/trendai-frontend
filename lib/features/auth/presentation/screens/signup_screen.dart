@@ -1,5 +1,4 @@
 /// Sign Up screen — name, email, password, confirm password, terms checkbox.
-library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -99,7 +98,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     Text('Create Account ✨',
                         style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
                     const SizedBox(height: 8),
-                    const Text('Join the future of content creation',
+                    Text('Join the future of content creation',
                         style: TextStyle(color: AppColors.textMuted, fontSize: 15)),
                     const SizedBox(height: 36),
 
@@ -168,7 +167,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           activeColor: AppColors.primary,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                         ),
-                        const Expanded(
+                        Expanded(
                           child: Text('I agree to the Terms & Conditions',
                               style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
                         ),
@@ -187,10 +186,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text('Already have an account? ', style: TextStyle(color: AppColors.textMuted)),
+                        Text('Already have an account? ', style: TextStyle(color: AppColors.textMuted)),
                         GestureDetector(
                           onTap: () => context.go('/login'),
-                          child: const Text('Login',
+                          child: Text('Login',
                               style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600)),
                         ),
                       ],

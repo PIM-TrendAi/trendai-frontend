@@ -1,7 +1,6 @@
 /// Shared widgets used across the TrendAI app.
 /// Includes: AppBarWidget, BottomNavWidget, GradientButton,
 ///  GlassCard, AnimatedCounter, PlatformBadge.
-library;
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -16,14 +15,12 @@ class TrendAIAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.title,
     this.subtitle,
     this.action,
-    this.actions,
     this.showBack = false,
   });
 
   final String title;
   final String? subtitle;
   final Widget? action;
-  final List<Widget>? actions;
   final bool showBack;
 
   @override
@@ -82,7 +79,7 @@ class TrendAIAppBar extends StatelessWidget implements PreferredSizeWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.auto_awesome_rounded, size: 12, color: AppColors.primary),
+                          Icon(Icons.auto_awesome_rounded, size: 12, color: AppColors.primary),
                           const SizedBox(width: 4),
                           Text(
                             subtitle!,
@@ -97,10 +94,7 @@ class TrendAIAppBar extends StatelessWidget implements PreferredSizeWidget {
                   ],
                 ),
               ),
-              if (actions != null)
-                Row(mainAxisSize: MainAxisSize.min, children: actions!)
-              else
-                SizedBox(width: 36, child: action),
+              SizedBox(width: 36, child: action),
             ],
           ),
         ),
@@ -116,13 +110,12 @@ class TrendAIBottomNav extends StatelessWidget {
   const TrendAIBottomNav({super.key, required this.currentIndex});
   final int currentIndex;
 
-  static const _routes = ['/dashboard', '/trends', '/n8n-picker', '/my-videos', '/analytics', '/profile'];
-  static const _labels = ['Home', 'Trends', 'Agent', 'Videos', 'Stats', 'Me'];
+  static const _routes = ['/dashboard', '/trends', '/ai-generator', '/analytics', '/profile'];
+  static const _labels = ['Home', 'Trends', 'AI Gen', 'Stats', 'Me'];
   static const _icons = [
     Icons.home_rounded,
     Icons.trending_up_rounded,
     Icons.auto_awesome_rounded,
-    Icons.video_library_rounded,
     Icons.bar_chart_rounded,
     Icons.person_rounded,
   ];

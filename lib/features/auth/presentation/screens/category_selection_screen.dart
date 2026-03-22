@@ -1,5 +1,4 @@
 /// Category Selection screen — user picks up to 5 content categories after signup.
-library;
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -81,7 +80,7 @@ class _CategorySelectionScreenState
                       Text('Define Your Content Universe 🌐',
                           style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
                       const SizedBox(height: 6),
-                      const Text('Select the content you create (up to 5)',
+                      Text('Select the content you create (up to 5)',
                           style: TextStyle(color: AppColors.textMuted)),
                       if (_selected.isNotEmpty) ...[
                         const SizedBox(height: 12),

@@ -1,5 +1,4 @@
 /// Three onboarding screens (pages 1, 2, 3) based on the Figma design.
-library;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -89,7 +88,7 @@ class OnboardingScreen extends StatelessWidget {
                   Text(
                     d.subtitle,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: AppColors.textMuted, fontSize: 15, height: 1.6),
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 15, height: 1.6),
                   ),
                   const Spacer(),
                   GradientButton(
@@ -101,7 +100,7 @@ class OnboardingScreen extends StatelessWidget {
                   if (!isLast)
                     TextButton(
                       onPressed: () => context.go('/login'),
-                      child: const Text('Already have an account?  Login',
+                      child: Text('Already have an account?  Login',
                           style: TextStyle(color: AppColors.textMuted)),
                     ),
                   const SizedBox(height: 32),
