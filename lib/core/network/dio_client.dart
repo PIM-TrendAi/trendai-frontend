@@ -1,14 +1,11 @@
-/// TrendAI API — Dio HTTP client with JWT auth interceptor.
-/// Automatically injects Bearer token and handles 401 by refreshing.
-import 'dart:io';
-
+// TrendAI — Dio client for Django REST API.
+// Base URL targets physical device WiFi (PC IP: 192.168.1.112).
+// AuthInterceptor injects JWT and handles token refresh automatically.
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../storage/secure_storage.dart';
 
-// Change to your machine's IP when testing on physical device
-// Android emulator: 10.0.2.2, iOS simulator: 127.0.0.1
-final _baseUrl = Platform.isAndroid ? 'http://10.0.2.2:8000/api' : 'http://127.0.0.1:8000/api';
+const _baseUrl = 'http://192.168.1.112:8000/api';
 
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(BaseOptions(
@@ -17,28 +14,18 @@ final dioProvider = Provider<Dio>((ref) {
     receiveTimeout: const Duration(seconds: 15),
     headers: {'Content-Type': 'application/json'},
   ));
-
-  dio.interceptors.add(_AuthInterceptor(ref, dio));
+  dio.interceptors.add(_AuthInterceptor(ref.read(secureStorageProvider)));
   return dio;
 });
 
-/// Injects JWT token and handles 401 → refresh → retry.
 class _AuthInterceptor extends Interceptor {
-  _AuthInterceptor(this._ref, this._dio);
-  final Ref _ref;
-  final Dio _dio;
+  _AuthInterceptor(this._storage);
+  final SecureStorageService _storage;
 
   @override
-  Future<void> onRequest(
-    RequestOptions options,
-    RequestInterceptorHandler handler,
-  ) async {
-    if (options.path.contains('/auth/refresh')) {
-      return handler.next(options);
-    }
-
-    final storage = _ref.read(secureStorageProvider);
-    final token = await storage.readAccessToken();
+  void onRequest(
+      RequestOptions options, RequestInterceptorHandler handler) async {
+    final token = await _storage.readAccessToken();
     if (token != null) {
       options.headers['Authorization'] = 'Bearer $token';
     }
@@ -46,40 +33,23 @@ class _AuthInterceptor extends Interceptor {
   }
 
   @override
-  Future<void> onError(
-    DioException err,
-    ErrorInterceptorHandler handler,
-  ) async {
-    if (err.requestOptions.path.contains('/auth/refresh')) {
-      await _ref.read(secureStorageProvider).clearAll();
-      return handler.next(err);
-    }
-
+  void onError(DioException err, ErrorInterceptorHandler handler) async {
     if (err.response?.statusCode == 401) {
-      // Try refreshing the token
-      try {
-        final storage = _ref.read(secureStorageProvider);
-        final refresh = await storage.readRefreshToken();
-        if (refresh == null) {
-          handler.next(err);
-          return;
+      final refresh = await _storage.readRefreshToken();
+      if (refresh != null) {
+        try {
+          final refreshDio = Dio(BaseOptions(baseUrl: _baseUrl));
+          final res = await refreshDio
+              .post('/auth/refresh/', data: {'refresh': refresh});
+          final newAccess = res.data['access'] as String;
+          await _storage.writeAccessToken(newAccess);
+          final opts = err.requestOptions;
+          opts.headers['Authorization'] = 'Bearer $newAccess';
+          final response = await refreshDio.fetch(opts);
+          return handler.resolve(response);
+        } catch (_) {
+          await _storage.clearAll();
         }
-        final response = await _dio.post(
-          '/auth/refresh/',
-          data: {'refresh': refresh},
-          options: Options(headers: {}), // no auth header to avoid loop
-        );
-        final newAccess = response.data['access'] as String;
-        await storage.writeAccessToken(newAccess);
-        // Retry original request
-        final retried = await _dio.fetch(
-          err.requestOptions..headers['Authorization'] = 'Bearer $newAccess',
-        );
-        handler.resolve(retried);
-        return;
-      } catch (_) {
-        // Refresh also failed — clear tokens and let the app redirect to login
-        await _ref.read(secureStorageProvider).clearAll();
       }
     }
     handler.next(err);

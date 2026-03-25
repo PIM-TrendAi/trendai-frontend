@@ -1,5 +1,5 @@
-/// TrendDetail screen — deep-dive on a single trend.
-/// Shows line chart (7-day performance), engagement stats, analysis, action buttons.
+// TrendDetail screen — deep-dive on a single trend.
+// Shows line chart (7-day performance), engagement stats, analysis, action buttons.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,9 +44,9 @@ class TrendDetailScreen extends ConsumerWidget {
                           TrendTypeIcon(type: trend.type),
                           const Spacer(),
                           Row(children: [
-                            Icon(Icons.arrow_upward_rounded, color: AppColors.success, size: 16),
+                            const Icon(Icons.arrow_upward_rounded, color: AppColors.success, size: 16),
                             Text('${trend.growth.toInt()}% growth',
-                                style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w600)),
+                                style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.w600)),
                           ]),
                         ],
                       ),
@@ -87,7 +87,7 @@ class TrendDetailScreen extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(children: [
-                              Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 18),
+                              const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 18),
                               const SizedBox(width: 8),
                               Text('Why It\'s Working',
                                   style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
@@ -98,7 +98,7 @@ class TrendDetailScreen extends ConsumerWidget {
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(Icons.check_circle_rounded, color: AppColors.success, size: 16),
+                                  const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 16),
                                   const SizedBox(width: 8),
                                   Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
                                 ],
@@ -167,21 +167,21 @@ class _SparklineChart extends StatelessWidget {
 
     return LineChart(
       LineChartData(
-        gridData: FlGridData(show: false),
+        gridData: const FlGridData(show: false),
         titlesData: FlTitlesData(
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
               getTitlesWidget: (val, _) => Text(
                 chartData[val.toInt()]['day'] as String? ?? '',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 10),
+                style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
               ),
               interval: 1,
             ),
           ),
-          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
         borderData: FlBorderData(show: false),
         lineBarsData: [
@@ -190,7 +190,7 @@ class _SparklineChart extends StatelessWidget {
             isCurved: true,
             gradient: AppColors.gradientPrimaryHorizontal,
             barWidth: 3,
-            dotData: FlDotData(show: false),
+            dotData: const FlDotData(show: false),
             belowBarData: BarAreaData(
               show: true,
               gradient: LinearGradient(
@@ -222,7 +222,7 @@ class _StatChip extends StatelessWidget {
             Icon(icon, color: AppColors.primary, size: 20),
             const SizedBox(height: 6),
             GradientText(value, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-            Text(label, style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+            Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
           ],
         ),
       ),
@@ -244,7 +244,7 @@ class _InsightRow extends StatelessWidget {
         children: [
           Icon(icon, color: AppColors.primary, size: 16),
           const SizedBox(width: 8),
-          Text(label, style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+          Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
           const Spacer(),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
         ],

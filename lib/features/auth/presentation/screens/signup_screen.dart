@@ -1,11 +1,10 @@
-/// Sign Up screen — name, email, password, confirm password, terms checkbox.
+// Sign Up screen — name, email, password, confirm password, terms checkbox.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
 import '../../auth_repository.dart';
-import 'package:dio/dio.dart';
 
 class SignUpScreen extends ConsumerStatefulWidget {
   const SignUpScreen({super.key});
@@ -49,32 +48,11 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     if (auth.hasValue && auth.value != null) {
       context.go('/category-selection');
     } else if (auth.hasError) {
-      String errorMessage = 'An unexpected error occurred';
-      if (auth.error is DioException) {
-        final dioErr = auth.error as DioException;
-        final responseData = dioErr.response?.data;
-        if (responseData is Map<String, dynamic>) {
-          if (responseData.containsKey('detail')) {
-            errorMessage = responseData['detail'].toString();
-          } else if (responseData.containsKey('non_field_errors')) {
-            errorMessage = (responseData['non_field_errors'] as List).first.toString();
-          } else if (responseData.containsKey('email')) {
-            errorMessage = (responseData['email'] as List).first.toString();
-          } else if (responseData.containsKey('error')) {
-            errorMessage = responseData['error'].toString();
-          } else if (responseData.isNotEmpty) {
-            final firstVal = responseData.values.first;
-            errorMessage = firstVal is List ? firstVal.first.toString() : firstVal.toString();
-          }
-        } else {
-          errorMessage = dioErr.message ?? 'Network error';
-        }
-      } else {
-        errorMessage = auth.error.toString();
-      }
-
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMessage), backgroundColor: AppColors.error),
+        SnackBar(
+          content: Text(auth.error.toString()),
+          backgroundColor: AppColors.error,
+        ),
       );
     }
   }
@@ -98,7 +76,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     Text('Create Account ✨',
                         style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
                     const SizedBox(height: 8),
-                    Text('Join the future of content creation',
+                    const Text('Join the future of content creation',
                         style: TextStyle(color: AppColors.textMuted, fontSize: 15)),
                     const SizedBox(height: 36),
 
@@ -167,7 +145,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           activeColor: AppColors.primary,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                         ),
-                        Expanded(
+                        const Expanded(
                           child: Text('I agree to the Terms & Conditions',
                               style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
                         ),
@@ -186,10 +164,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('Already have an account? ', style: TextStyle(color: AppColors.textMuted)),
+                        const Text('Already have an account? ', style: TextStyle(color: AppColors.textMuted)),
                         GestureDetector(
                           onTap: () => context.go('/login'),
-                          child: Text('Login',
+                          child: const Text('Login',
                               style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600)),
                         ),
                       ],

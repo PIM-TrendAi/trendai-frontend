@@ -1,5 +1,5 @@
-/// Dashboard screen — main screen with viral score card, trending hashtags,
-/// platform heatmap, and AI recommendations. Matches the Figma design.
+// Dashboard screen — main screen with viral score card, trending hashtags,
+// platform heatmap, and AI recommendations. Matches the Figma design.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -28,7 +28,7 @@ class DashboardScreen extends ConsumerWidget {
           const AnimatedParticleBackground(),
           CustomScrollView(
             slivers: [
-              SliverToBoxAdapter(
+              const SliverToBoxAdapter(
                 child: TrendAIAppBar(
                   title: 'Dashboard',
                   subtitle: 'Powered by AI • Real-time insights',
@@ -39,13 +39,13 @@ class DashboardScreen extends ConsumerWidget {
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     // ── Viral Score Card
-                    _ViralScoreCard(score: 87),
+                    const _ViralScoreCard(score: 87),
                     const SizedBox(height: 28),
 
                     // ── Trending Now
                     Row(
                       children: [
-                        Icon(Icons.local_fire_department_rounded, color: AppColors.primary),
+                        const Icon(Icons.local_fire_department_rounded, color: AppColors.primary),
                         const SizedBox(width: 8),
                         Text('Trending Now 🔥',
                             style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
@@ -64,7 +64,7 @@ class DashboardScreen extends ConsumerWidget {
                         ),
                       ),
                       loading: () => const Center(child: CircularProgressIndicator()),
-                      error: (e, _) => GlassCard(
+                      error: (e, _) => const GlassCard(
                         child: Text('Could not load trends. Check API connection.', style: TextStyle(color: AppColors.textMuted)),
                       ),
                     ),
@@ -94,13 +94,13 @@ class DashboardScreen extends ConsumerWidget {
                       ],
                     ),
                     const SizedBox(height: 14),
-                    _RecommendationCard(
+                    const _RecommendationCard(
                       title: 'How AI is Changing Everything',
                       hook: "You won't believe what AI can do now...",
                       bestTime: '6:00 PM',
                     ),
                     const SizedBox(height: 12),
-                    _RecommendationCard(
+                    const _RecommendationCard(
                       title: '5 Productivity Secrets',
                       hook: 'Stop wasting time and start doing this...',
                       bestTime: '12:00 PM',
@@ -111,11 +111,11 @@ class DashboardScreen extends ConsumerWidget {
               ),
             ],
           ),
-          Positioned(
+          const Positioned(
             left: 0,
             right: 0,
             bottom: 0,
-            child: const TrendAIBottomNav(currentIndex: 0),
+            child: TrendAIBottomNav(currentIndex: 0),
           ),
         ],
       ),
@@ -138,10 +138,10 @@ class _ViralScoreCard extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              const Row(
                 children: [
                   Icon(Icons.bolt_rounded, color: AppColors.primary, size: 18),
-                  const SizedBox(width: 6),
+                  SizedBox(width: 6),
                   Text('Viral Score Today', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
                 ],
               ),
@@ -220,9 +220,9 @@ class _TrendingCard extends StatelessWidget {
                 TrendTypeIcon(type: trend.type),
                 Row(
                   children: [
-                    Icon(Icons.arrow_upward_rounded, color: AppColors.success, size: 14),
+                    const Icon(Icons.arrow_upward_rounded, color: AppColors.success, size: 14),
                     Text('${trend.growth.toInt()}%',
-                        style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w600, fontSize: 12)),
+                        style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.w600, fontSize: 12)),
                   ],
                 ),
               ],
@@ -236,7 +236,7 @@ class _TrendingCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Score', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                const Text('Score', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
                 GradientText('${trend.score.toInt()}%',
                     style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
               ],
@@ -306,12 +306,12 @@ class _RecommendationCard extends StatelessWidget {
         children: [
           Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
-          Text(hook, style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+          Text(hook, style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Best time: $bestTime', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+              Text('Best time: $bestTime', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
               GestureDetector(
                 onTap: () => context.go('/ai-generator'),
                 child: Container(

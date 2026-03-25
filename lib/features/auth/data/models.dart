@@ -1,4 +1,4 @@
-/// Auth User model — mirrors backend UserProfileSerializer response.
+// Auth User model — mirrors backend UserProfileSerializer response.
 class UserModel {
   final int id;
   final String email;
@@ -7,6 +7,10 @@ class UserModel {
   final String plan;
   final String accessToken;
   final String refreshToken;
+  final bool tiktokConnected;
+
+  // Used by n8n workflow screens to identify the creator
+  String get creatorId => id.toString();
 
   const UserModel({
     required this.id,
@@ -16,6 +20,7 @@ class UserModel {
     required this.plan,
     required this.accessToken,
     required this.refreshToken,
+    this.tiktokConnected = false,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -30,6 +35,17 @@ class UserModel {
       refreshToken: tokens['refresh'] as String? ?? '',
     );
   }
+
+  UserModel copyWith({bool? tiktokConnected}) => UserModel(
+        id: id,
+        email: email,
+        name: name,
+        categories: categories,
+        plan: plan,
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        tiktokConnected: tiktokConnected ?? this.tiktokConnected,
+      );
 }
 
 /// Trend model — mirrors backend TrendSerializer response.

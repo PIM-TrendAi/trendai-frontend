@@ -1,4 +1,4 @@
-/// TrendsList screen — filterable/sortable list of viral trends.
+// TrendsList screen — filterable/sortable list of viral trends.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -46,7 +46,7 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
           const AnimatedParticleBackground(),
           Column(
             children: [
-              TrendAIAppBar(title: 'Trending Now', subtitle: 'Real-time • Multi-platform'),
+              const TrendAIAppBar(title: 'Trending Now', subtitle: 'Real-time • Multi-platform'),
 
               // Platform filter chips
               SizedBox(
@@ -86,7 +86,7 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
                 child: Row(
                   children: [
-                    Icon(Icons.filter_list_rounded, color: AppColors.primary, size: 18),
+                    const Icon(Icons.filter_list_rounded, color: AppColors.primary, size: 18),
                     const SizedBox(width: 8),
                     const Text('Sort by', style: TextStyle(fontWeight: FontWeight.w600)),
                     const Spacer(),
@@ -139,14 +139,14 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.warning_rounded, size: 60, color: AppColors.error),
+                          const Icon(Icons.warning_rounded, size: 60, color: AppColors.error),
                           const SizedBox(height: 12),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 24.0),
                             child: Text(
                               errorMessage,
                               textAlign: TextAlign.center,
-                              style: TextStyle(color: AppColors.textMuted),
+                              style: const TextStyle(color: AppColors.textMuted),
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -162,9 +162,9 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
               ),
             ],
           ),
-          Positioned(
+          const Positioned(
             left: 0, right: 0, bottom: 0,
-            child: const TrendAIBottomNav(currentIndex: 1),
+            child: TrendAIBottomNav(currentIndex: 1),
           ),
         ],
       ),
@@ -205,7 +205,7 @@ class _TrendCard extends StatelessWidget {
                         PlatformBadge(platform: trend.platform),
                         const SizedBox(width: 8),
                         Text('${trend.views} views',
-                            style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                            style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
                       ]),
                     ],
                   ),
@@ -214,12 +214,12 @@ class _TrendCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.arrow_upward_rounded, color: AppColors.success, size: 16),
+                        const Icon(Icons.arrow_upward_rounded, color: AppColors.success, size: 16),
                         Text('${trend.growth.toInt()}%',
-                            style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w700)),
+                            style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.w700)),
                       ],
                     ),
-                    Text('Growth', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                    const Text('Growth', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
                   ],
                 ),
               ],
@@ -227,7 +227,7 @@ class _TrendCard extends StatelessWidget {
             const SizedBox(height: 12),
             Row(
               children: [
-                Text('Trend Score', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                const Text('Trend Score', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
                 const Spacer(),
                 GradientText('${trend.score.toInt()}%',
                     style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -239,7 +239,7 @@ class _TrendCard extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: trend.score / 100,
                 backgroundColor: Colors.white.withValues(alpha: 0.06),
-                valueColor: AlwaysStoppedAnimation(AppColors.primary),
+                valueColor: const AlwaysStoppedAnimation(AppColors.primary),
                 minHeight: 6,
               ),
             ),

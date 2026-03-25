@@ -1,5 +1,5 @@
-/// TrendAI Design System — Colors, Typography, and ThemeData
-/// All UI colors and gradients extracted from the Figma design.
+// TrendAI Design System — Colors, Typography, and ThemeData
+// All UI colors and gradients extracted from the Figma design.
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -98,7 +98,7 @@ class AppTheme {
   static ThemeData dark() {
     final base = ThemeData.dark(useMaterial3: true);
     return base.copyWith(
-      colorScheme: ColorScheme.dark(
+      colorScheme: const ColorScheme.dark(
         primary: AppColors.primary,
         secondary: AppColors.accent,
         surface: AppColors.backgroundDark,
@@ -155,7 +155,7 @@ class AppTheme {
   static ThemeData light() {
     final base = ThemeData.light(useMaterial3: true);
     return base.copyWith(
-      colorScheme: ColorScheme.light(
+      colorScheme: const ColorScheme.light(
         primary: AppColors.primary,
         secondary: AppColors.accent,
         surface: AppColors.backgroundLight,

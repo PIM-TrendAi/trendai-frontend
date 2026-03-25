@@ -1,6 +1,6 @@
-/// Shared widgets used across the TrendAI app.
-/// Includes: AppBarWidget, BottomNavWidget, GradientButton,
-///  GlassCard, AnimatedCounter, PlatformBadge.
+// Shared widgets used across the TrendAI app.
+// Includes: AppBarWidget, BottomNavWidget, GradientButton,
+//  GlassCard, AnimatedCounter, PlatformBadge.
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -79,7 +79,7 @@ class TrendAIAppBar extends StatelessWidget implements PreferredSizeWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.auto_awesome_rounded, size: 12, color: AppColors.primary),
+                          const Icon(Icons.auto_awesome_rounded, size: 12, color: AppColors.primary),
                           const SizedBox(width: 4),
                           Text(
                             subtitle!,
@@ -110,7 +110,7 @@ class TrendAIBottomNav extends StatelessWidget {
   const TrendAIBottomNav({super.key, required this.currentIndex});
   final int currentIndex;
 
-  static const _routes = ['/dashboard', '/trends', '/ai-generator', '/analytics', '/profile'];
+  static const _routes = ['/dashboard', '/trends', '/video-picker', '/analytics', '/profile'];
   static const _labels = ['Home', 'Trends', 'AI Gen', 'Stats', 'Me'];
   static const _icons = [
     Icons.home_rounded,

@@ -1,11 +1,10 @@
-/// Category Selection screen — user picks up to 5 content categories after signup.
+// Category Selection screen — user picks up to 5 content categories after signup.
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../../core/network/dio_client.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
+import '../../auth_repository.dart';
 
 const _categories = [
   ('entertainment', '🎭', 'Entertainment'),
@@ -26,7 +25,8 @@ const _categories = [
 ];
 
 class CategorySelectionScreen extends ConsumerStatefulWidget {
-  const CategorySelectionScreen({super.key});
+  const CategorySelectionScreen({super.key, this.fromProfile = false});
+  final bool fromProfile;
   @override
   ConsumerState<CategorySelectionScreen> createState() =>
       _CategorySelectionScreenState();
@@ -40,13 +40,13 @@ class _CategorySelectionScreenState
   Future<void> _continue() async {
     if (_selected.isEmpty) return;
     setState(() => _saving = true);
-    try {
-      final dio = ref.read(dioProvider);
-      await dio.patch('/auth/profile/', data: {'categories': _selected.toList()});
-    } on DioException catch (_) {
-      // Non-critical — proceed anyway
+    await ref.read(authNotifierProvider.notifier).saveNiches(_selected.toList());
+    if (!mounted) return;
+    if (widget.fromProfile) {
+      context.pop();
+    } else {
+      context.go('/dashboard');
     }
-    if (mounted) context.go('/dashboard');
   }
 
   @override
@@ -80,7 +80,7 @@ class _CategorySelectionScreenState
                       Text('Define Your Content Universe 🌐',
                           style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
                       const SizedBox(height: 6),
-                      Text('Select the content you create (up to 5)',
+                      const Text('Select the content you create (up to 5)',
                           style: TextStyle(color: AppColors.textMuted)),
                       if (_selected.isNotEmpty) ...[
                         const SizedBox(height: 12),

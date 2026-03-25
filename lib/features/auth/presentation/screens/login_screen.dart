@@ -1,12 +1,11 @@
-/// Login screen — email/password form, social login buttons, form validation.
-/// Matches Figma: dark bg, glass inputs, gradient submit button.
+// Login screen — email/password form, social login buttons, form validation.
+// Matches Figma: dark bg, glass inputs, gradient submit button.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
 import '../../auth_repository.dart';
-import 'package:dio/dio.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -39,31 +38,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (auth.hasValue && auth.value != null) {
       context.go('/dashboard');
     } else if (auth.hasError) {
-      String errorMessage = 'An unexpected error occurred';
-      if (auth.error is DioException) {
-        final dioErr = auth.error as DioException;
-        final responseData = dioErr.response?.data;
-        if (responseData is Map<String, dynamic>) {
-          if (responseData.containsKey('detail')) {
-            errorMessage = responseData['detail'].toString();
-          } else if (responseData.containsKey('non_field_errors')) {
-            errorMessage = (responseData['non_field_errors'] as List).first.toString();
-          } else if (responseData.containsKey('error')) {
-            errorMessage = responseData['error'].toString();
-          } else if (responseData.isNotEmpty) {
-            final firstVal = responseData.values.first;
-            errorMessage = firstVal is List ? firstVal.first.toString() : firstVal.toString();
-          }
-        } else {
-          errorMessage = dioErr.message ?? 'Network error';
-        }
-      } else {
-        errorMessage = auth.error.toString();
-      }
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(errorMessage),
+          content: Text(auth.error.toString()),
           backgroundColor: AppColors.error,
         ),
       );
@@ -93,7 +70,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               fontWeight: FontWeight.w800,
                             )),
                     const SizedBox(height: 8),
-                    Text('Sign in to continue creating',
+                    const Text('Sign in to continue creating',
                         style: TextStyle(color: AppColors.textMuted, fontSize: 15)),
                     const SizedBox(height: 40),
 
@@ -140,13 +117,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(4)),
                             ),
-                            Text('Remember me',
+                            const Text('Remember me',
                                 style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
                           ],
                         ),
                         TextButton(
                           onPressed: () {},
-                          child: Text('Forgot password?',
+                          child: const Text('Forgot password?',
                               style: TextStyle(color: AppColors.primary, fontSize: 13)),
                         ),
                       ],
@@ -162,10 +139,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(height: 28),
 
                     // Divider
-                    Row(children: [
+                    const Row(children: [
                       Expanded(child: Divider(color: Colors.white12)),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        padding: EdgeInsets.symmetric(horizontal: 16),
                         child: Text('or', style: TextStyle(color: AppColors.textMuted)),
                       ),
                       Expanded(child: Divider(color: Colors.white12)),
@@ -190,11 +167,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text("Don't have an account? ",
+                        const Text("Don't have an account? ",
                             style: TextStyle(color: AppColors.textMuted)),
                         GestureDetector(
                           onTap: () => context.go('/signup'),
-                          child: Text('Sign Up',
+                          child: const Text('Sign Up',
                               style: TextStyle(
                                   color: AppColors.primary, fontWeight: FontWeight.w600)),
                         ),

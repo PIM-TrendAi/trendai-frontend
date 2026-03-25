@@ -1,4 +1,4 @@
-/// Analytics screen — stat cards, 7-day engagement line chart, platform bar chart, heatmap.
+// Analytics screen — stat cards, 7-day engagement line chart, platform bar chart, heatmap.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -110,9 +110,9 @@ class AnalyticsScreen extends ConsumerWidget {
               ),
             ],
           ),
-          Positioned(
+          const Positioned(
             left: 0, right: 0, bottom: 0,
-            child: const TrendAIBottomNav(currentIndex: 3),
+            child: TrendAIBottomNav(currentIndex: 3),
           ),
         ],
       ),
@@ -134,15 +134,15 @@ class _StatCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+          Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
           const Spacer(),
           GradientText(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 22)),
           if (trend != null) ...[
             const SizedBox(height: 4),
             Row(
               children: [
-                Icon(Icons.arrow_upward_rounded, color: AppColors.success, size: 12),
-                Text(trend!, style: TextStyle(color: AppColors.success, fontSize: 11, fontWeight: FontWeight.w600)),
+                const Icon(Icons.arrow_upward_rounded, color: AppColors.success, size: 12),
+                Text(trend!, style: const TextStyle(color: AppColors.success, fontSize: 11, fontWeight: FontWeight.w600)),
               ],
             ),
           ],
@@ -165,7 +165,7 @@ class _EngagementLineChart extends StatelessWidget {
 
     return LineChart(
       LineChartData(
-        gridData: FlGridData(show: false),
+        gridData: const FlGridData(show: false),
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
           bottomTitles: AxisTitles(
@@ -173,14 +173,14 @@ class _EngagementLineChart extends StatelessWidget {
               showTitles: true,
               getTitlesWidget: (v, _) => Text(
                 data[v.toInt()]['day'] as String? ?? '',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 10),
+                style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
               ),
               interval: 1,
             ),
           ),
-          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
         lineBarsData: [
           LineChartBarData(
@@ -188,7 +188,7 @@ class _EngagementLineChart extends StatelessWidget {
             isCurved: true,
             gradient: AppColors.gradientPrimaryHorizontal,
             barWidth: 3,
-            dotData: FlDotData(show: false),
+            dotData: const FlDotData(show: false),
             belowBarData: BarAreaData(
               show: true,
               gradient: LinearGradient(
@@ -224,7 +224,7 @@ class _PlatformBarChart extends StatelessWidget {
       BarChartData(
         alignment: BarChartAlignment.spaceAround,
         maxY: maxVal * 1.2,
-        gridData: FlGridData(show: false),
+        gridData: const FlGridData(show: false),
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
           bottomTitles: AxisTitles(
@@ -232,13 +232,13 @@ class _PlatformBarChart extends StatelessWidget {
               showTitles: true,
               getTitlesWidget: (v, _) {
                 final name = data[v.toInt()]['name'] as String? ?? '';
-                return Text(name, style: TextStyle(color: AppColors.textMuted, fontSize: 10));
+                return Text(name, style: const TextStyle(color: AppColors.textMuted, fontSize: 10));
               },
             ),
           ),
-          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
         barGroups: data.asMap().entries.map((e) {
           final color = _platformColors[e.value['name']] ?? AppColors.primary;
@@ -265,10 +265,10 @@ class _PlatformBarChart extends StatelessWidget {
 
 // ── Posting heatmap
 class _PostingHeatmap extends StatelessWidget {
-  final _hours = ['6AM', '12PM', '6PM', '12AM'];
-  final _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  final _hours = const ['6AM', '12PM', '6PM', '12AM'];
+  final _days = const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   // Score matrix [hours][days] scaled 0-10
-  final _scores = [
+  final _scores = const [
     [2, 3, 4, 5, 8, 9, 7],
     [5, 6, 7, 8, 9, 8, 6],
     [8, 9, 9, 9, 10, 9, 8],
@@ -284,7 +284,7 @@ class _PostingHeatmap extends StatelessWidget {
           padding: const EdgeInsets.only(left: 44),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: _days.map((d) => Text(d, style: TextStyle(color: AppColors.textMuted, fontSize: 9))).toList(),
+            children: _days.map((d) => Text(d, style: const TextStyle(color: AppColors.textMuted, fontSize: 9))).toList(),
           ),
         ),
         const SizedBox(height: 8),
@@ -295,7 +295,7 @@ class _PostingHeatmap extends StatelessWidget {
               children: [
                 SizedBox(
                   width: 36,
-                  child: Text(_hours[hi], style: TextStyle(color: AppColors.textMuted, fontSize: 9)),
+                  child: Text(_hours[hi], style: const TextStyle(color: AppColors.textMuted, fontSize: 9)),
                 ),
                 ...List.generate(_days.length, (di) {
                   final score = _scores[hi][di];
@@ -319,7 +319,7 @@ class _PostingHeatmap extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            Text('Low', style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
+            const Text('Low', style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
             const SizedBox(width: 6),
             ...List.generate(5, (i) => Container(
               width: 14,
@@ -331,7 +331,7 @@ class _PostingHeatmap extends StatelessWidget {
               ),
             )),
             const SizedBox(width: 6),
-            Text('High', style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
+            const Text('High', style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
           ],
         ),
       ],

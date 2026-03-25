@@ -1,5 +1,5 @@
-/// GoRouter configuration for TrendAI.
-/// Checks token in SecureStorage for auth guard — if no token, redirects to splash.
+// GoRouter configuration for TrendAI.
+// Checks token in SecureStorage for auth guard — if no token, redirects to splash.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
@@ -13,11 +13,20 @@ import '../../features/trends/presentation/screens/trend_detail_screen.dart';
 import '../../features/ai_generator/presentation/ai_generator_screen.dart';
 import '../../features/analytics/presentation/analytics_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/video_workflow/presentation/screens/video_picker_screen.dart';
+import '../../features/video_workflow/presentation/screens/script_review_screen.dart';
+import '../../features/video_workflow/presentation/screens/video_generation_screen.dart';
+import '../../features/video_workflow/presentation/screens/video_review_screen.dart';
+import '../../features/my_videos/presentation/my_videos_screen.dart';
 import '../storage/secure_storage.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/splash',
+    onException: (_, GoRouterState state, GoRouter router) {
+      // Deep link callbacks (trendai://callback) have no route — send to profile
+      router.go('/profile');
+    },
     redirect: (context, state) async {
       final storage = ref.read(secureStorageProvider);
       final hasToken = await storage.hasTokens();
@@ -38,7 +47,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/onboarding-3', builder: (_, __) => const OnboardingScreen(page: 3)),
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/signup', builder: (_, __) => const SignUpScreen()),
-      GoRoute(path: '/category-selection', builder: (_, __) => const CategorySelectionScreen()),
+      GoRoute(
+        path: '/category-selection',
+        builder: (_, state) => CategorySelectionScreen(
+          fromProfile: state.uri.queryParameters['from'] == 'profile',
+        ),
+      ),
       GoRoute(path: '/dashboard', builder: (_, __) => const DashboardScreen()),
       GoRoute(path: '/trends', builder: (_, __) => const TrendsListScreen()),
       GoRoute(
@@ -48,6 +62,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/ai-generator', builder: (_, __) => const AIGeneratorScreen()),
       GoRoute(path: '/analytics', builder: (_, __) => const AnalyticsScreen()),
       GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
+      GoRoute(path: '/video-picker', builder: (_, __) => const VideoPickerScreen()),
+      GoRoute(path: '/script-review', builder: (_, __) => const ScriptReviewScreen()),
+      GoRoute(path: '/video-generation', builder: (_, __) => const VideoGenerationScreen()),
+      GoRoute(path: '/video-review', builder: (_, __) => const VideoReviewScreen()),
+      GoRoute(path: '/my-videos', builder: (_, __) => const MyVideosScreen()),
     ],
   );
 });

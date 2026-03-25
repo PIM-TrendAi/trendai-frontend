@@ -1,17 +1,14 @@
-/// Profile screen — user info, plan, connected platforms, settings, logout.
+// Profile screen — user info, plan, connected platforms, settings, logout.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import '../../../../core/theme/app_theme.dart';
-import '../../../../core/network/dio_client.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
 import '../../auth/auth_repository.dart';
-
-final _platformsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final res = await ref.read(dioProvider).get('/platforms/');
-  return List<Map<String, dynamic>>.from(res.data);
-});
+import '../../video_workflow/data/n8n_repository.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -21,19 +18,13 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _notifications = true;
-
-  Future<void> _togglePlatform(Map<String, dynamic> platform) async {
-    try {
-      await ref.read(dioProvider).patch('/platforms/${platform['id']}/');
-      ref.invalidate(_platformsProvider);
-    } catch (_) {}
-  }
+  bool _tiktokLoading = false;
 
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authNotifierProvider);
     final user = auth.valueOrNull;
-    final platformsAsync = ref.watch(_platformsProvider);
+    final tiktokConnected = user?.tiktokConnected ?? false;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final themeMode = ref.watch(themeModeProvider);
@@ -87,7 +78,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
                             const SizedBox(height: 4),
                             Text(user?.email ?? '',
-                                style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                                style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
                           ],
                         ),
                       ),
@@ -129,7 +120,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                     ],
                                   ),
                                   const SizedBox(height: 2),
-                                  Text('Unlimited access', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                                  const Text('Unlimited access', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
                                 ],
                               ),
                             ),
@@ -150,43 +141,50 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       Text('Connected Platforms',
                           style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
                       const SizedBox(height: 12),
-                      platformsAsync.when(
-                        data: (platforms) => Column(
-                          children: [
-                            _PlatformCard(
-                              name: 'TikTok',
-                              isConnected: true,
-                              iconColor: AppColors.tikTok,
-                              iconData: Icons.link_rounded,
-                              onAction: () {},
-                            ),
-                            _PlatformCard(
-                              name: 'Instagram',
-                              isConnected: true,
-                              iconColor: AppColors.instagram,
-                              iconData: Icons.link_rounded,
-                              onAction: () {},
-                            ),
-                            _PlatformCard(
-                              name: 'YouTube',
-                              isConnected: false,
-                              iconColor: AppColors.youtube,
-                              iconData: Icons.link_rounded,
-                              isPrimaryAction: true,
-                              onAction: () {},
-                            ),
-                            _PlatformCard(
-                              name: 'Facebook',
-                              isConnected: false,
-                              iconColor: AppColors.facebook,
-                              iconData: Icons.link_rounded,
-                              isPrimaryAction: true,
-                              onAction: () {},
-                            ),
-                          ],
-                        ),
-                        loading: () => const Center(child: CircularProgressIndicator()),
-                        error: (_, __) => Text('Could not load platforms', style: TextStyle(color: AppColors.textMuted)),
+                      Column(
+                        children: [
+                          _PlatformCard(
+                            name: 'TikTok',
+                            isConnected: tiktokConnected,
+                            iconColor: AppColors.tikTok,
+                            iconData: Icons.link_rounded,
+                            isPrimaryAction: !tiktokConnected,
+                            isLoading: _tiktokLoading,
+                            onAction: () async {
+                              if (tiktokConnected || _tiktokLoading) return;
+                              setState(() => _tiktokLoading = true);
+                              try {
+                                final creatorId = user?.creatorId ?? '';
+                                final authUrl = await ref
+                                    .read(n8nRepositoryProvider)
+                                    .startTikTokOAuth(creatorId);
+                                final uri = Uri.parse(authUrl);
+                                if (await canLaunchUrl(uri)) {
+                                  await launchUrl(uri,
+                                      mode: LaunchMode.externalApplication);
+                                  // Connection is confirmed via deep link callback
+                                  // trendai://callback?tiktok=success (handled in main.dart)
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Authorize TikTok in your browser, then return here.'),
+                                        duration: Duration(seconds: 4),
+                                      ),
+                                    );
+                                  }
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Could not start TikTok login: $e')),
+                                  );
+                                }
+                              } finally {
+                                if (mounted) setState(() => _tiktokLoading = false);
+                              }
+                            },
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 24),
 
@@ -208,7 +206,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               child: Switch.adaptive(
                                 value: _notifications,
                                 onChanged: (v) => setState(() => _notifications = v),
-                                activeColor: AppColors.primary,
+                                activeThumbColor: AppColors.primary,
                               ),
                             ),
                             Divider(color: isDark ? Colors.white10 : Colors.grey.shade200, height: 1),
@@ -220,7 +218,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 onChanged: (v) {
                                   ref.read(themeModeProvider.notifier).state = v ? ThemeMode.dark : ThemeMode.light;
                                 },
-                                activeColor: AppColors.primary,
+                                activeThumbColor: AppColors.primary,
                               ),
                             ),
                             Divider(color: isDark ? Colors.white10 : Colors.grey.shade200, height: 1),
@@ -233,12 +231,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   color: isDark ? Colors.white.withValues(alpha: 0.05) : AppColors.backgroundLight,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: Row(
+                                child: const Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text('15 min', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-                                    const SizedBox(width: 4),
-                                    const Icon(Icons.keyboard_arrow_down_rounded, size: 16),
+                                    SizedBox(width: 4),
+                                    Icon(Icons.keyboard_arrow_down_rounded, size: 16),
                                   ],
                                 ),
                               ),
@@ -246,8 +244,53 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 24),
 
+                      // ── My Videos
+                      GestureDetector(
+                        onTap: () => context.push('/my-videos'),
+                        child: Container(
+                          width: double.infinity,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: isDark ? AppColors.primary.withValues(alpha: 0.12) : AppColors.primary.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.video_library_rounded, color: AppColors.primary),
+                              SizedBox(width: 10),
+                              Text('My Videos', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 15)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // ── Change Niche
+                      GestureDetector(
+                        onTap: () => context.push('/category-selection?from=profile'),
+                        child: Container(
+                          width: double.infinity,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.grey.shade200),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.category_rounded, color: AppColors.textMuted),
+                              SizedBox(width: 10),
+                              Text('Change Niche', style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.w600, fontSize: 15)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
 
                       // ── Logout
                       GestureDetector(
@@ -263,9 +306,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
                           ),
-                          child: Row(
+                          child: const Row(
                             mainAxisAlignment: MainAxisAlignment.center,
-                            children: const [
+                            children: [
                               Icon(Icons.logout_rounded, color: AppColors.error),
                               SizedBox(width: 10),
                               Text('Logout', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w600, fontSize: 15)),
@@ -279,9 +322,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             ],
           ),
-          Positioned(
+          const Positioned(
             left: 0, right: 0, bottom: 0,
-            child: const TrendAIBottomNav(currentIndex: 4),
+            child: TrendAIBottomNav(currentIndex: 4),
           ),
         ],
       ),
@@ -297,6 +340,7 @@ class _PlatformCard extends StatelessWidget {
     required this.iconData,
     required this.onAction,
     this.isPrimaryAction = false,
+    this.isLoading = false,
   });
 
   final String name;
@@ -305,6 +349,7 @@ class _PlatformCard extends StatelessWidget {
   final IconData iconData;
   final VoidCallback onAction;
   final bool isPrimaryAction;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -364,14 +409,20 @@ class _PlatformCard extends StatelessWidget {
                 color: isPrimaryAction ? AppColors.primary : (isDark ? Colors.white.withValues(alpha: 0.1) : AppColors.backgroundLight),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Text(
-                isPrimaryAction ? 'Connect' : 'Disconnect',
-                style: TextStyle(
-                  color: isPrimaryAction ? Colors.white : (isDark ? Colors.white : AppColors.textLight),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              child: isLoading
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : Text(
+                      isPrimaryAction ? 'Connect' : 'Disconnect',
+                      style: TextStyle(
+                        color: isPrimaryAction ? Colors.white : (isDark ? Colors.white : AppColors.textLight),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
             ),
           ),
         ],
