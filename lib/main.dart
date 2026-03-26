@@ -5,13 +5,18 @@ import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/config/server_config.dart';
+import 'core/config/server_discovery.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
 import 'core/router/app_router.dart';
 import 'core/storage/secure_storage.dart';
 import 'features/auth/auth_repository.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Auto-discover Django server — sets ServerConfig.host before first frame.
+  ServerConfig.host = await discoverServerHost();
   runApp(const ProviderScope(child: TrendAIApp()));
 }
 

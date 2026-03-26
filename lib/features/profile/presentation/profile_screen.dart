@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/network/dio_client.dart';
+import '../../../../core/storage/secure_storage.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
@@ -151,32 +153,42 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             isPrimaryAction: !tiktokConnected,
                             isLoading: _tiktokLoading,
                             onAction: () async {
-                              if (tiktokConnected || _tiktokLoading) return;
+                              if (_tiktokLoading) return;
                               setState(() => _tiktokLoading = true);
                               try {
-                                final creatorId = user?.creatorId ?? '';
-                                final authUrl = await ref
-                                    .read(n8nRepositoryProvider)
-                                    .startTikTokOAuth(creatorId);
-                                final uri = Uri.parse(authUrl);
-                                if (await canLaunchUrl(uri)) {
-                                  await launchUrl(uri,
-                                      mode: LaunchMode.externalApplication);
-                                  // Connection is confirmed via deep link callback
-                                  // trendai://callback?tiktok=success (handled in main.dart)
+                                if (tiktokConnected) {
+                                  // ── Disconnect
+                                  await ref.read(dioProvider).post('/platforms/tiktok/disconnect/');
+                                  await ref.read(secureStorageProvider).setTikTokConnected(false);
+                                  ref.read(authNotifierProvider.notifier).setTikTokConnected(connected: false);
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Authorize TikTok in your browser, then return here.'),
-                                        duration: Duration(seconds: 4),
-                                      ),
+                                      const SnackBar(content: Text('TikTok disconnected.')),
                                     );
+                                  }
+                                } else {
+                                  // ── Connect
+                                  final creatorId = user?.creatorId ?? '';
+                                  final authUrl = await ref
+                                      .read(n8nRepositoryProvider)
+                                      .startTikTokOAuth(creatorId);
+                                  final uri = Uri.parse(authUrl);
+                                  if (await canLaunchUrl(uri)) {
+                                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Authorize TikTok in your browser, then return here.'),
+                                          duration: Duration(seconds: 4),
+                                        ),
+                                      );
+                                    }
                                   }
                                 }
                               } catch (e) {
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Could not start TikTok login: $e')),
+                                    SnackBar(content: Text('Error: $e')),
                                   );
                                 }
                               } finally {

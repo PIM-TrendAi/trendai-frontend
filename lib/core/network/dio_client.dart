@@ -1,15 +1,13 @@
 // TrendAI — Dio client for Django REST API.
-// Base URL targets physical device WiFi (PC IP: 192.168.1.112).
-// AuthInterceptor injects JWT and handles token refresh automatically.
+// Server address is centralised in core/config/server_config.dart — edit there.
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../config/server_config.dart';
 import '../storage/secure_storage.dart';
-
-const _baseUrl = 'http://192.168.1.112:8000/api';
 
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(BaseOptions(
-    baseUrl: _baseUrl,
+    baseUrl: ServerConfig.httpBase,
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 15),
     headers: {'Content-Type': 'application/json'},
@@ -38,7 +36,7 @@ class _AuthInterceptor extends Interceptor {
       final refresh = await _storage.readRefreshToken();
       if (refresh != null) {
         try {
-          final refreshDio = Dio(BaseOptions(baseUrl: _baseUrl));
+          final refreshDio = Dio(BaseOptions(baseUrl: ServerConfig.httpBase));
           final res = await refreshDio
               .post('/auth/refresh/', data: {'refresh': refresh});
           final newAccess = res.data['access'] as String;

@@ -80,11 +80,11 @@ class AuthNotifier extends StateNotifier<AsyncValue<CreatorModel?>> {
     }
   }
 
-  Future<void> setTikTokConnected() async {
-    await _storage.setTikTokConnected(true);
+  Future<void> setTikTokConnected({bool connected = true}) async {
+    await _storage.setTikTokConnected(connected);
     final current = state.valueOrNull;
     if (current != null) {
-      state = AsyncValue.data(current.copyWith(tiktokConnected: true));
+      state = AsyncValue.data(current.copyWith(tiktokConnected: connected));
     }
   }
 

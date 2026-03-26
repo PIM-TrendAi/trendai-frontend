@@ -18,6 +18,7 @@ import '../../features/video_workflow/presentation/screens/script_review_screen.
 import '../../features/video_workflow/presentation/screens/video_generation_screen.dart';
 import '../../features/video_workflow/presentation/screens/video_review_screen.dart';
 import '../../features/my_videos/presentation/my_videos_screen.dart';
+import '../../features/tiktok_stats/presentation/tiktok_stats_screen.dart';
 import '../storage/secure_storage.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -67,6 +68,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/video-generation', builder: (_, __) => const VideoGenerationScreen()),
       GoRoute(path: '/video-review', builder: (_, __) => const VideoReviewScreen()),
       GoRoute(path: '/my-videos', builder: (_, __) => const MyVideosScreen()),
+      GoRoute(path: '/tiktok-stats', builder: (_, __) => const TikTokStatsScreen()),
     ],
   );
 });
