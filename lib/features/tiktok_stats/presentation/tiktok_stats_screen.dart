@@ -38,6 +38,7 @@ class _TikTokStatsScreenState extends ConsumerState<TikTokStatsScreen> {
   bool _loading = true;
   String? _error;
   String? _lastUpdated;
+  final _scrollCtrl = ScrollController();
 
   @override
   void initState() {
@@ -47,6 +48,7 @@ class _TikTokStatsScreenState extends ConsumerState<TikTokStatsScreen> {
 
   @override
   void dispose() {
+    _scrollCtrl.dispose();
     _reconnectTimer?.cancel();
     _sub?.cancel();
     _channel?.sink.close();
@@ -157,11 +159,11 @@ class _TikTokStatsScreenState extends ConsumerState<TikTokStatsScreen> {
               Expanded(child: _buildBody()),
             ],
           ),
-          const Positioned(
+          Positioned(
             left: 0,
             right: 0,
             bottom: 0,
-            child: TrendAIBottomNav(currentIndex: 3),
+            child: TrendAIBottomNav(currentIndex: 3, scrollController: _scrollCtrl),
           ),
         ],
       ),
@@ -184,6 +186,7 @@ class _TikTokStatsScreenState extends ConsumerState<TikTokStatsScreen> {
         }
       },
       child: ListView.builder(
+        controller: _scrollCtrl,
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
         itemCount: _videos.length + (_lastUpdated != null ? 1 : 0),
         itemBuilder: (context, index) {

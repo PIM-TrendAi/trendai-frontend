@@ -29,6 +29,21 @@ int _parseCount(String s) {
   return int.tryParse(v) ?? 0;
 }
 
+/// Returns a momentum label and color for a pill badge.
+/// Pass [growth] for hashtag trend cards, or [viewCount] for TikTok video cards.
+({String label, Color color}) _momentumBadge({double? growth, int? viewCount}) {
+  if (growth != null) {
+    if (growth >= 50) return (label: '🔥 Hot',        color: Colors.orange);
+    if (growth >= 20) return (label: '📈 Rising',     color: AppColors.success);
+    if (growth >= 0)  return (label: '➡ Steady',     color: AppColors.textMuted);
+    return             (label: '📉 Declining',         color: AppColors.error);
+  }
+  final v = viewCount ?? 0;
+  if (v >= 1000000) return (label: '🔥 Hot',    color: Colors.orange);
+  if (v >= 100000)  return (label: '📈 Rising', color: AppColors.success);
+  return              (label: '➡ Steady',       color: AppColors.textMuted);
+}
+
 class TrendsListScreen extends ConsumerStatefulWidget {
   const TrendsListScreen({super.key});
   @override
@@ -38,12 +53,19 @@ class TrendsListScreen extends ConsumerStatefulWidget {
 class _TrendsListState extends ConsumerState<TrendsListScreen> {
   String _platform = 'All';
   String _sort = 'views';
-  String _niche = '';   // defaults to user's first saved niche on load
+  String _niche = '';
+  final _scrollCtrl = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _initNiche();
+  }
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _initNiche() async {
@@ -77,6 +99,7 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
   Widget build(BuildContext context) {
     final params = <String, String>{'sort': _sort};
     if (_platform != 'All') params['platform'] = _platform;
+    if (_niche.isNotEmpty) params['niche'] = _niche;
     final trendsAsync = ref.watch(_allTrendsProvider(params));
 
     return Scaffold(
@@ -201,6 +224,7 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
               // Trends list
               Expanded(
                 child: ListView(
+                  controller: _scrollCtrl,
                   padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
                   children: [
                     if (_platform == 'TikTok' || _platform == 'All') ...[
@@ -212,10 +236,23 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
                       const SizedBox(height: 12),
                     ],
                     ...trendsAsync.when(
-                      data: (trends) => trends.asMap().entries.map((e) => Padding(
-                        padding: EdgeInsets.only(bottom: e.key < trends.length - 1 ? 12 : 0),
-                        child: _TrendCard(trend: e.value),
-                      )).toList(),
+                      data: (trends) {
+                        // Client-side niche filter — runs whether or not backend honours the param
+                        final filtered = _niche.isEmpty
+                            ? trends
+                            : () {
+                                final keywords = nicheKeywords[_niche.toLowerCase()] ?? [_niche.toLowerCase()];
+                                final result = trends.where((t) {
+                                  final haystack = t.hashtag.toLowerCase();
+                                  return keywords.any((kw) => haystack.contains(kw));
+                                }).toList();
+                                return result.isNotEmpty ? result : trends;
+                              }();
+                        return filtered.asMap().entries.map((e) => Padding(
+                          padding: EdgeInsets.only(bottom: e.key < filtered.length - 1 ? 12 : 0),
+                          child: _TrendCard(trend: e.value),
+                        )).toList();
+                      },
                       loading: () => [const Center(child: CircularProgressIndicator())],
                       error: (err, _) => [Center(child: Text(err.toString(), style: const TextStyle(color: AppColors.textMuted)))],
                     ),
@@ -224,9 +261,9 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
               ),
             ],
           ),
-          const Positioned(
+          Positioned(
             left: 0, right: 0, bottom: 0,
-            child: TrendAIBottomNav(currentIndex: 1),
+            child: TrendAIBottomNav(currentIndex: 1, scrollController: _scrollCtrl),
           ),
         ],
       ),
@@ -391,6 +428,22 @@ class _TikTokVideoCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                    const SizedBox(height: 4),
+                    Builder(builder: (_) {
+                      final badge = _momentumBadge(viewCount: _parseCount(video.views));
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: badge.color.withValues(alpha: 0.20),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: badge.color.withValues(alpha: 0.50)),
+                        ),
+                        child: Text(
+                          badge.label,
+                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: badge.color),
+                        ),
+                      );
+                    }),
                     const SizedBox(height: 3),
                     Text(
                       video.title,
@@ -495,6 +548,7 @@ class _TrendCard extends StatelessWidget {
                   ),
                 ),
                 Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Row(
                       children: [
@@ -504,6 +558,22 @@ class _TrendCard extends StatelessWidget {
                       ],
                     ),
                     const Text('Growth', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                    const SizedBox(height: 6),
+                    Builder(builder: (_) {
+                      final badge = _momentumBadge(growth: trend.growth);
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: badge.color.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: badge.color.withValues(alpha: 0.45)),
+                        ),
+                        child: Text(
+                          badge.label,
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: badge.color),
+                        ),
+                      );
+                    }),
                   ],
                 ),
               ],

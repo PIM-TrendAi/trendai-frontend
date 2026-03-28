@@ -61,8 +61,11 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     _connectWs();
   }
 
+  final _scrollCtrl = ScrollController();
+
   @override
   void dispose() {
+    _scrollCtrl.dispose();
     _reconnectTimer?.cancel();
     _sub?.cancel();
     _channel?.sink.close();
@@ -131,6 +134,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
               const TrendAIAppBar(title: 'Analytics', subtitle: 'Last 7 days'),
               Expanded(
                 child: SingleChildScrollView(
+                  controller: _scrollCtrl,
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -200,7 +204,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
               ),
             ],
           ),
-          const Positioned(left: 0, right: 0, bottom: 0, child: TrendAIBottomNav(currentIndex: 3)),
+          Positioned(left: 0, right: 0, bottom: 0, child: TrendAIBottomNav(currentIndex: 3, scrollController: _scrollCtrl)),
         ],
       ),
     );

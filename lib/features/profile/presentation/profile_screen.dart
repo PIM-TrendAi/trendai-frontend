@@ -21,6 +21,13 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _notifications = true;
   bool _tiktokLoading = false;
+  final _scrollCtrl = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +47,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               const TrendAIAppBar(title: 'Profile', subtitle: 'Manage your account • Preferences'),
               Expanded(
                 child: SingleChildScrollView(
+                  controller: _scrollCtrl,
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -334,9 +342,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             ],
           ),
-          const Positioned(
+          Positioned(
             left: 0, right: 0, bottom: 0,
-            child: TrendAIBottomNav(currentIndex: 4),
+            child: TrendAIBottomNav(currentIndex: 4, scrollController: _scrollCtrl),
           ),
         ],
       ),

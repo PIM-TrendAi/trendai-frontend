@@ -15,18 +15,37 @@ final _dashboardTrendsProvider = FutureProvider<List<TrendModel>>((ref) async {
   return list.map((e) => TrendModel.fromJson(e as Map<String, dynamic>)).toList();
 });
 
-class DashboardScreen extends ConsumerWidget {
+final _analyticsSummaryProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  final res = await ref.read(dioProvider).get('/analytics/summary/');
+  return res.data as Map<String, dynamic>;
+});
+
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
+  @override
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  final _scrollCtrl = ScrollController();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final trendsAsync = ref.watch(_dashboardTrendsProvider);
+    final summaryAsync = ref.watch(_analyticsSummaryProvider);
 
     return Scaffold(
       body: Stack(
         children: [
           const AnimatedParticleBackground(),
           CustomScrollView(
+            controller: _scrollCtrl,
             slivers: [
               const SliverToBoxAdapter(
                 child: TrendAIAppBar(
@@ -40,7 +59,14 @@ class DashboardScreen extends ConsumerWidget {
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     // ── Viral Score Card
-                    const _ViralScoreCard(score: 87),
+                    summaryAsync.when(
+                      data: (summary) {
+                        final score = (summary['viral_score']?['value'] as num?)?.toInt() ?? 0;
+                        return _ViralScoreCard(score: score);
+                      },
+                      loading: () => const _ViralScoreCard(score: 0),
+                      error: (_, __) => const _ViralScoreCard(score: 0),
+                    ),
                     const SizedBox(height: 28),
 
                     // ── Trending Now
@@ -112,11 +138,11 @@ class DashboardScreen extends ConsumerWidget {
               ),
             ],
           ),
-          const Positioned(
+          Positioned(
             left: 0,
             right: 0,
             bottom: 0,
-            child: TrendAIBottomNav(currentIndex: 0),
+            child: TrendAIBottomNav(currentIndex: 0, scrollController: _scrollCtrl),
           ),
         ],
       ),

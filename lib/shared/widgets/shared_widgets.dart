@@ -110,10 +110,20 @@ class TrendAIAppBar extends StatelessWidget implements PreferredSizeWidget {
 // ─────────────────────────────────────────────
 // Bottom Nav Bar — glassmorphism floating pill
 // ─────────────────────────────────────────────
-class TrendAIBottomNav extends StatelessWidget {
-  const TrendAIBottomNav({super.key, required this.currentIndex});
+class TrendAIBottomNav extends StatefulWidget {
+  const TrendAIBottomNav({
+    super.key,
+    required this.currentIndex,
+    this.scrollController,
+  });
   final int currentIndex;
+  final ScrollController? scrollController;
 
+  @override
+  State<TrendAIBottomNav> createState() => _TrendAIBottomNavState();
+}
+
+class _TrendAIBottomNavState extends State<TrendAIBottomNav> {
   static const _routes = ['/dashboard', '/trends', '/video-picker', '/analytics', '/profile'];
   static const _labels = ['Home', 'Trends', 'AI Gen', 'Stats', 'Me'];
   static const _icons = [
@@ -124,63 +134,109 @@ class TrendAIBottomNav extends StatelessWidget {
     Icons.person_rounded,
   ];
 
+  bool _visible = true;
+  double _lastOffset = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.scrollController?.addListener(_onScroll);
+  }
+
+  @override
+  void didUpdateWidget(TrendAIBottomNav old) {
+    super.didUpdateWidget(old);
+    if (old.scrollController != widget.scrollController) {
+      old.scrollController?.removeListener(_onScroll);
+      widget.scrollController?.addListener(_onScroll);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.scrollController?.removeListener(_onScroll);
+    super.dispose();
+  }
+
+  void _onScroll() {
+    final ctrl = widget.scrollController;
+    if (ctrl == null || !ctrl.hasClients) return;
+    final current = ctrl.offset;
+    final diff = current - _lastOffset;
+    if (diff > 8 && _visible) {
+      setState(() => _visible = false); // scrolling down → hide
+    } else if (diff < -8 && !_visible) {
+      setState(() => _visible = true);  // scrolling up → show
+    }
+    _lastOffset = current;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      decoration: BoxDecoration(
-        color: isDark ? null : Colors.white.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(40),
-        gradient: isDark
-            ? LinearGradient(
-                colors: [
-                  Colors.white.withValues(alpha: 0.08),
-                  Colors.white.withValues(alpha: 0.04),
-                ],
-              )
-            : null,
-        border: Border.all(
-            color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.05)),
-        boxShadow: isDark ? null : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 20)],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: List.generate(_routes.length, (i) {
-          final isActive = i == currentIndex;
-          return GestureDetector(
-            onTap: () => context.go(_routes[i]),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                gradient: isActive ? AppColors.gradientPrimary : null,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                   Icon(
-                    _icons[i],
-                    size: 22,
-                    color: isActive ? Colors.white : (isDark ? AppColors.textMuted : AppColors.textMuted.withValues(alpha: 0.7)),
+    return AnimatedSlide(
+      offset: _visible ? Offset.zero : const Offset(0, 1.5),
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeInOut,
+      child: AnimatedOpacity(
+        opacity: _visible ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 200),
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          decoration: BoxDecoration(
+            color: isDark ? null : Colors.white.withValues(alpha: 0.8),
+            borderRadius: BorderRadius.circular(40),
+            gradient: isDark
+                ? LinearGradient(
+                    colors: [
+                      Colors.white.withValues(alpha: 0.08),
+                      Colors.white.withValues(alpha: 0.04),
+                    ],
+                  )
+                : null,
+            border: Border.all(
+                color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.05)),
+            boxShadow: isDark ? null : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 20)],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: List.generate(_routes.length, (i) {
+              final isActive = i == widget.currentIndex;
+              return GestureDetector(
+                onTap: () => context.go(_routes[i]),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: isActive ? AppColors.gradientPrimary : null,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _labels[i],
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                      color: isActive ? Colors.white : AppColors.textMuted,
-                    ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _icons[i],
+                        size: 22,
+                        color: isActive ? Colors.white : (isDark ? AppColors.textMuted : AppColors.textMuted.withValues(alpha: 0.7)),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _labels[i],
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          color: isActive ? Colors.white : AppColors.textMuted,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-          );
-        }),
+                ),
+              );
+            }),
+          ),
+        ),
       ),
     );
   }
