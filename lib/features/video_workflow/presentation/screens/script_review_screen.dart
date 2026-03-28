@@ -21,6 +21,13 @@ class ScriptReviewScreen extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+          onPressed: () {
+            ref.read(workflowProvider.notifier).reset();
+            context.go('/video-picker');
+          },
+        ),
       ),
       body: Stack(
         children: [

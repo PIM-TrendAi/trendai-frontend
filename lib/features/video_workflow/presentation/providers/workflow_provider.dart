@@ -58,6 +58,11 @@ class WorkflowNotifier extends StateNotifier<WorkflowState> {
   Future<void> startWorkflow({
     required String creatorId,
     required String selectedVideoId,
+    required String videoTitle,
+    required String videoAuthor,
+    required List<String> videoHashtags,
+    required String videoViews,
+    required String videoLikes,
     required String niche,
     required String userPrompt,
   }) async {
@@ -66,6 +71,11 @@ class WorkflowNotifier extends StateNotifier<WorkflowState> {
       final res = await _repo.startWorkflow(
         creatorId: creatorId,
         selectedVideoId: selectedVideoId,
+        videoTitle: videoTitle,
+        videoAuthor: videoAuthor,
+        videoHashtags: videoHashtags,
+        videoViews: videoViews,
+        videoLikes: videoLikes,
         niche: niche,
         userPrompt: userPrompt,
       );

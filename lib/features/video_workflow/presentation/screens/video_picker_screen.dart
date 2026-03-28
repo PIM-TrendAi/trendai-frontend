@@ -106,6 +106,11 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
     await ref.read(workflowProvider.notifier).startWorkflow(
           creatorId: creatorId,
           selectedVideoId: video.videoId,
+          videoTitle: video.title,
+          videoAuthor: video.author,
+          videoHashtags: video.hashtags,
+          videoViews: video.views,
+          videoLikes: video.likes,
           niche: _niche ?? video.niche,
           userPrompt: _promptCtrl.text.trim(),
         );

@@ -58,6 +58,11 @@ class N8nService {
   Future<WorkflowStartResponse> startWorkflow({
     required String creatorId,
     required String selectedVideoId,
+    required String videoTitle,
+    required String videoAuthor,
+    required List<String> videoHashtags,
+    required String videoViews,
+    required String videoLikes,
     required String niche,
     required String userPrompt,
   }) async {
@@ -66,6 +71,11 @@ class N8nService {
       data: {
         'creatorId': creatorId,
         'selectedVideoId': selectedVideoId,
+        'videoTitle': videoTitle,
+        'videoAuthor': videoAuthor,
+        'videoHashtags': videoHashtags,
+        'videoViews': videoViews,
+        'videoLikes': videoLikes,
         'niche': niche,
         'userPrompt': userPrompt,
       },
@@ -80,7 +90,9 @@ class N8nService {
     final response = await _dio.post(
       _pathScriptDecision,
       data: {'sessionId': sessionId, 'action': action},
-      options: Options(receiveTimeout: const Duration(seconds: 30)),
+      // Decline triggers a full regeneration via Ollama (~60-90s) before
+      // n8n responds — give enough headroom so we don't timeout mid-generation.
+      options: Options(receiveTimeout: const Duration(seconds: 150)),
     );
     return ScriptActionResponse.fromJson(response.data as Map<String, dynamic>);
   }

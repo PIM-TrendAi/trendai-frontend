@@ -17,12 +17,22 @@ class N8nRepository {
   Future<WorkflowStartResponse> startWorkflow({
     required String creatorId,
     required String selectedVideoId,
+    required String videoTitle,
+    required String videoAuthor,
+    required List<String> videoHashtags,
+    required String videoViews,
+    required String videoLikes,
     required String niche,
     required String userPrompt,
   }) =>
       _service.startWorkflow(
         creatorId: creatorId,
         selectedVideoId: selectedVideoId,
+        videoTitle: videoTitle,
+        videoAuthor: videoAuthor,
+        videoHashtags: videoHashtags,
+        videoViews: videoViews,
+        videoLikes: videoLikes,
         niche: niche,
         userPrompt: userPrompt,
       );

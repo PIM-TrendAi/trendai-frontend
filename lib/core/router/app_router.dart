@@ -10,7 +10,6 @@ import '../../features/auth/presentation/screens/category_selection_screen.dart'
 import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/trends/presentation/screens/trends_list_screen.dart';
 import '../../features/trends/presentation/screens/trend_detail_screen.dart';
-import '../../features/ai_generator/presentation/ai_generator_screen.dart';
 import '../../features/analytics/presentation/analytics_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/video_workflow/presentation/screens/video_picker_screen.dart';
@@ -60,7 +59,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/trend/:id',
         builder: (_, state) => TrendDetailScreen(id: int.parse(state.pathParameters['id']!)),
       ),
-      GoRoute(path: '/ai-generator', builder: (_, __) => const AIGeneratorScreen()),
+      GoRoute(path: '/ai-generator', builder: (_, __) => const VideoPickerScreen()),
       GoRoute(path: '/analytics', builder: (_, __) => const AnalyticsScreen()),
       GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
       GoRoute(path: '/video-picker', builder: (_, __) => const VideoPickerScreen()),
