@@ -5,19 +5,11 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/network/dio_client.dart';
-import '../../../../core/network/n8n_service.dart';
+import '../../../../core/storage/secure_storage.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
 import '../../../auth/data/models.dart';
 import '../../../video_workflow/data/models/workflow_models.dart';
-
-
-// Parameterised by niche so Riverpod re-fetches when niche changes.
-final _tiktokVideosProvider =
-    FutureProvider.family<List<TrendingVideoModel>, String>((ref, niche) async {
-  return ref
-      .read(n8nServiceProvider)
-      .fetchTrendingVideos(niche: niche.isEmpty ? null : niche);
-});
+import '../../data/trends_provider.dart';
 
 final _allTrendsProvider = FutureProvider.family<List<TrendModel>, Map<String, String>>(
   (ref, params) async {
@@ -46,7 +38,20 @@ class TrendsListScreen extends ConsumerStatefulWidget {
 class _TrendsListState extends ConsumerState<TrendsListScreen> {
   String _platform = 'All';
   String _sort = 'views';
-  String _niche = '';   // '' = all niches
+  String _niche = '';   // defaults to user's first saved niche on load
+
+  @override
+  void initState() {
+    super.initState();
+    _initNiche();
+  }
+
+  Future<void> _initNiche() async {
+    final niches = await ref.read(secureStorageProvider).readCreatorNiches();
+    if (niches.isNotEmpty && mounted) {
+      setState(() => _niche = niches.first);
+    }
+  }
 
   final _platforms = ['All', 'TikTok', 'Instagram', 'YouTube', 'Facebook'];
   final _sortOptions = [
@@ -238,7 +243,7 @@ class _TikTokVideosSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final videosAsync = ref.watch(_tiktokVideosProvider(niche));
+    final videosAsync = ref.watch(tiktokVideosProvider(niche));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

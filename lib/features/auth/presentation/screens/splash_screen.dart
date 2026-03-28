@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/storage/secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../trends/data/trends_provider.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -35,7 +36,19 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     final storage = ref.read(secureStorageProvider);
     final hasToken = await storage.hasTokens();
     if (!mounted) return;
-    context.go(hasToken ? '/dashboard' : '/onboarding-1');
+
+    if (hasToken) {
+      // Pre-warm the TikTok scraper using the user's saved niches so data is
+      // ready by the time the user opens the Trends screen.
+      final niches = await storage.readCreatorNiches();
+      final niche = niches.isNotEmpty ? niches.first : '';
+      // ignore: unused_result — intentional background warm-up
+      ref.read(tiktokVideosProvider(niche));
+      if (!mounted) return;
+      context.go('/dashboard');
+    } else {
+      context.go('/onboarding-1');
+    }
   }
 
   @override
