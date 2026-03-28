@@ -43,7 +43,7 @@ Future<String> discoverServerHost() async {
   }
 
   // Always include known historical IPs as extra hints
-  candidates.addAll(['192.168.1.15', '192.168.1.112', '192.168.1.217']);
+  candidates.addAll(['127.0.0.1', '192.168.1.15', '192.168.1.112', '192.168.1.217']);
 
   final found = await _raceReachable(candidates.toList());
   if (found != null) {

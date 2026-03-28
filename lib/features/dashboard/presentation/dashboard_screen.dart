@@ -32,6 +32,7 @@ class DashboardScreen extends ConsumerWidget {
                 child: TrendAIAppBar(
                   title: 'Dashboard',
                   subtitle: 'Powered by AI • Real-time insights',
+                  leading: _QuickMenuButton(),
                 ),
               ),
               SliverPadding(
@@ -118,6 +119,85 @@ class DashboardScreen extends ConsumerWidget {
             child: TrendAIBottomNav(currentIndex: 0),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Quick Menu Button (top-left)
+class _QuickMenuButton extends StatefulWidget {
+  const _QuickMenuButton();
+  @override
+  State<_QuickMenuButton> createState() => _QuickMenuButtonState();
+}
+
+class _QuickMenuButtonState extends State<_QuickMenuButton> {
+  bool _open = false;
+
+  Future<void> _showMenu() async {
+    setState(() => _open = true);
+
+    final renderBox = context.findRenderObject() as RenderBox;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        renderBox.localToGlobal(Offset(0, renderBox.size.height + 4), ancestor: overlay),
+        renderBox.localToGlobal(renderBox.size.bottomRight(Offset.zero), ancestor: overlay),
+      ),
+      Offset.zero & overlay.size,
+    );
+
+    final result = await showMenu<String>(
+      context: context,
+      position: position,
+      elevation: 12,
+      color: const Color(0xFF0F111E),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+      ),
+      items: [
+        const PopupMenuItem(
+          value: '/my-videos',
+          child: Row(children: [
+            Icon(Icons.video_library_rounded, color: AppColors.primary, size: 16),
+            SizedBox(width: 10),
+            Text('My Videos',
+                style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 13)),
+          ]),
+        ),
+        const PopupMenuItem(
+          value: '/category-selection?from=profile',
+          child: Row(children: [
+            Icon(Icons.tune_rounded, color: AppColors.tikTok, size: 16),
+            SizedBox(width: 10),
+            Text('My Niche',
+                style: TextStyle(color: AppColors.tikTok, fontWeight: FontWeight.w600, fontSize: 13)),
+          ]),
+        ),
+      ],
+    );
+
+    if (!mounted) return;
+    setState(() => _open = false);
+    if (result != null) context.push(result);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _showMenu,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          gradient: _open ? AppColors.gradientPrimary : null,
+          color: _open ? null : Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        ),
+        child: const Icon(Icons.widgets_rounded, size: 18, color: Colors.white),
       ),
     );
   }

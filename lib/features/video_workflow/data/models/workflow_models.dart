@@ -23,16 +23,56 @@ class TrendingVideoModel {
 
   factory TrendingVideoModel.fromJson(Map<String, dynamic> json) {
     return TrendingVideoModel(
-      videoId: json['video_id'] as String? ?? '',
-      title: json['title'] as String? ?? 'Trending Video',
-      author: json['author'] as String? ?? '',
-      thumbnailUrl: json['thumbnail_url'] as String? ?? '',
-      views: json['views'] as String? ?? '0',
-      likes: json['likes'] as String? ?? '0',
-      niche: json['category'] as String? ?? '',
-      hashtags: _parseHashtags(json['hashtags']),
-      tiktokUrl: json['tiktok_url'] as String? ?? '',
+      videoId: json['video_id'] as String? ?? json['id'] as String? ?? '',
+      title: json['title'] as String? ?? json['desc'] as String? ?? 'Trending Video',
+      author: json['author'] as String? ?? json['author_name'] as String?
+          ?? json['unique_id'] as String? ?? '',
+      thumbnailUrl: json['thumbnail_url'] as String? ?? json['cover'] as String?
+          ?? json['origin_cover'] as String? ?? '',
+      // Try every name TikTok/n8n might use for view count
+      views: _pickCount(json, const [
+        'views', 'play_count', 'playCount', 'view_count', 'viewCount',
+        'plays', 'video_play_count',
+      ]),
+      // Try every name TikTok/n8n might use for like count
+      likes: _pickCount(json, const [
+        'likes', 'digg_count', 'diggCount', 'like_count', 'likeCount',
+        'heart', 'hearts',
+      ]),
+      niche: json['category'] as String? ?? json['niche'] as String? ?? '',
+      hashtags: _parseHashtags(json['hashtags'] ?? json['challenges']),
+      tiktokUrl: json['tiktok_url'] as String? ?? json['url'] as String? ?? '',
     );
+  }
+
+  /// Returns the first non-zero value found among [keys], formatted as K/M/B.
+  static String _pickCount(Map<String, dynamic> json, List<String> keys) {
+    for (final key in keys) {
+      final raw = json[key];
+      if (raw == null) continue;
+      final formatted = _parseCountField(raw);
+      if (formatted != '0') return formatted;
+    }
+    // All were null or zero — return the raw value of the first present key
+    for (final key in keys) {
+      if (json.containsKey(key)) return _parseCountField(json[key]);
+    }
+    return '0';
+  }
+
+  /// Accepts String ("1.2M"), int (1_200_000), or double.
+  static String _parseCountField(dynamic value) {
+    if (value == null) return '0';
+    if (value is String) {
+      final s = value.trim();
+      if (s.isEmpty || s == '0') return '0';
+      return s; // already formatted ("1.2M") — trust it
+    }
+    final n = (value as num).toDouble();
+    if (n >= 1e9) return '${(n / 1e9).toStringAsFixed(1)}B';
+    if (n >= 1e6) return '${(n / 1e6).toStringAsFixed(1)}M';
+    if (n >= 1e3) return '${(n / 1e3).toStringAsFixed(1)}K';
+    return n.toInt().toString();
   }
 
   static List<String> _parseHashtags(dynamic value) {

@@ -94,10 +94,9 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
     final isLoading = workflowState.status == WorkflowStatus.generatingScript;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Pick a Trend'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+      appBar: const TrendAIAppBar(
+        title: 'Pick a Trend',
+        showBack: true,
       ),
       body: Stack(
         children: [

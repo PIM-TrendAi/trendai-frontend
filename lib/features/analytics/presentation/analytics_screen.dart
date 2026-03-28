@@ -6,6 +6,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../../../core/config/server_config.dart' show ServerConfig;
@@ -275,8 +276,8 @@ class _TikTokLiveSection extends StatelessWidget {
             ),
           )
         else if (videos.isEmpty)
-          GlassCard(
-            child: const Padding(
+          const GlassCard(
+            child: Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
               child: Center(
                 child: Text('No videos found on your TikTok account',
@@ -336,6 +337,8 @@ class _VideoStatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final title = video['title'] as String? ?? 'Untitled';
     final thumbnail = video['thumbnail_url'] as String? ?? '';
+    final videoId = video['video_id'] as String? ?? '';
+    final shareUrl = video['share_url'] as String? ?? '';
     final views = video['views'] as int? ?? 0;
     final likes = video['likes'] as int? ?? 0;
     final comments = video['comments'] as int? ?? 0;
@@ -344,7 +347,13 @@ class _VideoStatCard extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: GlassCard(
+      child: GestureDetector(
+        onTap: shareUrl.isNotEmpty
+            ? () => launchUrl(Uri.parse(shareUrl), mode: LaunchMode.externalApplication)
+            : videoId.isNotEmpty
+                ? () => launchUrl(Uri.parse('https://vm.tiktok.com/$videoId'), mode: LaunchMode.externalApplication)
+                : null,
+        child: GlassCard(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -379,6 +388,7 @@ class _VideoStatCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

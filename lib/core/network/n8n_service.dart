@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/video_workflow/data/models/workflow_models.dart';
@@ -40,6 +41,11 @@ class N8nService {
     );
     final data = response.data;
     if (data is List) {
+      if (data.isNotEmpty) {
+        // Print first item's keys so we can confirm the exact field names
+        debugPrint('[n8n] trending video keys: ${(data.first as Map).keys.toList()}');
+        debugPrint('[n8n] first item: ${data.first}');
+      }
       return data
           .map((e) => TrendingVideoModel.fromJson(e as Map<String, dynamic>))
           .toList();

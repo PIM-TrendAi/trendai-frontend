@@ -63,6 +63,21 @@ class _CategorySelectionScreenState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Back button
+                      GestureDetector(
+                        onTap: () => context.canPop() ? context.pop() : context.go('/dashboard'),
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                          ),
+                          child: const Icon(Icons.arrow_back_ios_new, size: 16, color: Colors.white),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       // Progress bar (step 2 of 3)
                       Row(
                         children: List.generate(3, (i) => Expanded(

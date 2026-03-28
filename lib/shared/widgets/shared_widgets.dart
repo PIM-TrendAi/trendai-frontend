@@ -15,12 +15,14 @@ class TrendAIAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.title,
     this.subtitle,
     this.action,
+    this.leading,
     this.showBack = false,
   });
 
   final String title;
   final String? subtitle;
   final Widget? action;
+  final Widget? leading;
   final bool showBack;
 
   @override
@@ -45,9 +47,11 @@ class TrendAIAppBar extends StatelessWidget implements PreferredSizeWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
-              if (showBack)
+              if (leading != null)
+                leading!
+              else if (showBack)
                 GestureDetector(
-                  onTap: () => context.pop(),
+                  onTap: () => context.canPop() ? context.pop() : context.go('/dashboard'),
                   child: Container(
                     width: 36,
                     height: 36,
