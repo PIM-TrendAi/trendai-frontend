@@ -10,10 +10,46 @@ import '../../data/models/workflow_models.dart';
 import '../../data/n8n_repository.dart';
 import '../providers/workflow_provider.dart';
 
+// Keywords associated with each niche for loose client-side matching
+const _nicheKeywords = <String, List<String>>{
+  'entertainment': ['entertainment', 'funny', 'comedy', 'viral', 'fun', 'meme', 'prank', 'challenge', 'skit'],
+  'education': ['education', 'learn', 'tutorial', 'howto', 'tips', 'facts', 'science', 'history', 'study'],
+  'business': ['business', 'entrepreneur', 'startup', 'marketing', 'sales', 'ceo', 'hustle', 'success'],
+  'finance': ['finance', 'money', 'investing', 'stocks', 'crypto', 'budget', 'wealth', 'financial', 'income'],
+  'fitness': ['fitness', 'workout', 'gym', 'health', 'exercise', 'diet', 'nutrition', 'training', 'muscle'],
+  'motivation': ['motivation', 'mindset', 'inspire', 'success', 'goals', 'growth', 'positivity', 'mindfulness'],
+  'gaming': ['gaming', 'gamer', 'game', 'gameplay', 'esports', 'twitch', 'ps5', 'xbox', 'minecraft', 'fortnite'],
+  'art': ['art', 'design', 'drawing', 'painting', 'creative', 'artist', 'illustration', 'sketch', 'digital'],
+  'fashion': ['fashion', 'style', 'outfit', 'ootd', 'clothing', 'beauty', 'makeup', 'skincare', 'aesthetic'],
+  'cooking': ['cooking', 'food', 'recipe', 'chef', 'baking', 'meal', 'kitchen', 'eat', 'delicious'],
+  'travel': ['travel', 'adventure', 'explore', 'trip', 'vacation', 'wanderlust', 'destination', 'vlog'],
+  'tech': ['tech', 'technology', 'coding', 'programming', 'ai', 'software', 'developer', 'gadget', 'review'],
+  'podcast': ['podcast', 'interview', 'talk', 'discussion', 'story', 'storytelling', 'narration'],
+  'news': ['news', 'politics', 'world', 'breaking', 'update', 'current', 'economy', 'report'],
+  'storytelling': ['story', 'storytelling', 'narrative', 'tale', 'sharing', 'life', 'experience'],
+};
+
+bool _matchesNiche(TrendingVideoModel v, String niche) {
+  final keywords = _nicheKeywords[niche.toLowerCase()] ?? [niche.toLowerCase()];
+  final haystack = [
+    v.title,
+    v.niche,
+    ...v.hashtags,
+  ].join(' ').toLowerCase();
+  return keywords.any((kw) => haystack.contains(kw));
+}
+
+// (niche, platform)
 final _trendingVideosProvider =
-    FutureProvider<List<TrendingVideoModel>>((ref) {
-  // No niche filter — webhook defaults to 'trending' category (78 videos)
-  return ref.read(n8nRepositoryProvider).fetchTrendingVideos(niche: null);
+    FutureProvider.family<List<TrendingVideoModel>, (String?, String)>((ref, params) async {
+  final (niche, platform) = params;
+  // Only TikTok is integrated — other platforms return empty until colleagues add support
+  if (platform != 'tiktok') return [];
+  final repo = ref.read(n8nRepositoryProvider);
+  final all = await repo.fetchTrendingVideos(niche: null, platform: platform);
+  if (niche == null || niche.isEmpty) return all;
+  final filtered = all.where((v) => _matchesNiche(v, niche)).toList();
+  return filtered.isNotEmpty ? filtered : all;
 });
 
 class VideoPickerScreen extends ConsumerStatefulWidget {
@@ -28,6 +64,7 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
   final _promptCtrl = TextEditingController();
   TrendingVideoModel? _selectedVideo;
   String? _niche;
+  String _selectedPlatform = 'tiktok';
 
   @override
   void initState() {
@@ -89,7 +126,7 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final videosAsync = ref.watch(_trendingVideosProvider);
+    final videosAsync = ref.watch(_trendingVideosProvider((_niche, _selectedPlatform)));
     final workflowState = ref.watch(workflowProvider);
     final isLoading = workflowState.status == WorkflowStatus.generatingScript;
 
@@ -127,6 +164,61 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
                 ),
               ),
 
+              // Platform selector
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _PlatformChip(
+                        label: 'TikTok',
+                        brandColor: const Color(0xFF69C9D0),
+                        icon: Icons.music_note_rounded,
+                        isSelected: _selectedPlatform == 'tiktok',
+                        onTap: () => setState(() {
+                          _selectedPlatform = 'tiktok';
+                          _selectedVideo = null;
+                        }),
+                      ),
+                      const SizedBox(width: 8),
+                      _PlatformChip(
+                        label: 'Instagram',
+                        brandColor: const Color(0xFFE1306C),
+                        icon: Icons.camera_alt_rounded,
+                        isSelected: _selectedPlatform == 'instagram',
+                        onTap: () => setState(() {
+                          _selectedPlatform = 'instagram';
+                          _selectedVideo = null;
+                        }),
+                      ),
+                      const SizedBox(width: 8),
+                      _PlatformChip(
+                        label: 'YouTube',
+                        brandColor: const Color(0xFFFF0000),
+                        icon: Icons.play_circle_filled_rounded,
+                        isSelected: _selectedPlatform == 'youtube',
+                        onTap: () => setState(() {
+                          _selectedPlatform = 'youtube';
+                          _selectedVideo = null;
+                        }),
+                      ),
+                      const SizedBox(width: 8),
+                      _PlatformChip(
+                        label: 'Facebook',
+                        brandColor: const Color(0xFF1877F2),
+                        icon: Icons.facebook_rounded,
+                        isSelected: _selectedPlatform == 'facebook',
+                        onTap: () => setState(() {
+                          _selectedPlatform = 'facebook';
+                          _selectedVideo = null;
+                        }),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
               // Trending videos list
               Expanded(
                 child: videosAsync.when(
@@ -143,7 +235,7 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
                         const SizedBox(height: 8),
                         TextButton(
                           onPressed: () =>
-                              ref.invalidate(_trendingVideosProvider),
+                              ref.invalidate(_trendingVideosProvider((_niche, _selectedPlatform))),
                           child: const Text('Retry'),
                         ),
                       ],
@@ -152,10 +244,27 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
                   data: (videos) {
                     if (videos.isEmpty) {
                       return const Center(
-                        child: Text(
-                          'No trending videos yet.\nRun the daily scrape first.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.textMuted),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.hourglass_top_rounded,
+                                color: AppColors.textMuted, size: 48),
+                            SizedBox(height: 12),
+                            Text(
+                              'Coming soon',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            SizedBox(height: 6),
+                            Text(
+                              'This platform is being integrated.\nCheck back soon!',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                            ),
+                          ],
                         ),
                       );
                     }
@@ -317,6 +426,56 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PlatformChip extends StatelessWidget {
+  const _PlatformChip({
+    required this.label,
+    required this.brandColor,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final Color brandColor;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? brandColor.withValues(alpha: 0.18) : Colors.white.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: isSelected ? brandColor : Colors.white.withValues(alpha: 0.15),
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: isSelected ? brandColor : AppColors.textMuted),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? brandColor : AppColors.textMuted,
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

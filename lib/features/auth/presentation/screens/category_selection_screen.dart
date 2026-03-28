@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/storage/secure_storage.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
 import '../../auth_repository.dart';
@@ -36,6 +37,19 @@ class _CategorySelectionScreenState
     extends ConsumerState<CategorySelectionScreen> {
   final Set<String> _selected = {};
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSaved();
+  }
+
+  Future<void> _loadSaved() async {
+    final niches = await ref.read(secureStorageProvider).readCreatorNiches();
+    if (niches.isNotEmpty && mounted) {
+      setState(() => _selected.addAll(niches));
+    }
+  }
 
   Future<void> _continue() async {
     if (_selected.isEmpty) return;

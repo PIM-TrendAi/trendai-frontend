@@ -64,6 +64,7 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
         'name': name,
         'email': email,
         'password': password,
+        'confirm_password': password,
       });
       final user = UserModel.fromJson(res.data as Map<String, dynamic>);
       await _saveSession(user);

@@ -73,7 +73,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 24),
-                    Text('Create Account ✨',
+                    Text('✨ Create Account ✨',
                         style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
                     const SizedBox(height: 8),
                     const Text('Join the future of content creation',

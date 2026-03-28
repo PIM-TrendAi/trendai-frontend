@@ -41,19 +41,33 @@ class OnboardingScreen extends StatelessWidget {
               child: Column(
                 children: [
                   const SizedBox(height: 24),
-                  // Progress dots
+                  // Top row: dots + skip
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(3, (i) => AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      width: i == page - 1 ? 24 : 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: i == page - 1 ? AppColors.primary : Colors.white24,
-                        borderRadius: BorderRadius.circular(4),
+                    children: [
+                      const Spacer(),
+                      // Progress dots
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(3, (i) => AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                          width: i == page - 1 ? 24 : 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: i == page - 1 ? AppColors.primary : Colors.white24,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        )),
                       ),
-                    )),
+                      const Spacer(),
+                      if (!isLast)
+                        GestureDetector(
+                          onTap: () => context.go('/signup'),
+                          child: const Text('Skip',
+                              style: TextStyle(color: AppColors.textMuted, fontSize: 14, fontWeight: FontWeight.w600)),
+                        ),
+                      if (isLast) const SizedBox(width: 32),
+                    ],
                   ),
                   const Spacer(),
                   // Hero illustration

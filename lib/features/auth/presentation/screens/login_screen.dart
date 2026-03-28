@@ -65,7 +65,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 32),
-                    Text('Welcome Back 👋',
+                    Text('Welcome Back',
                         style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                               fontWeight: FontWeight.w800,
                             )),

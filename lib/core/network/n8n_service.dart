@@ -33,10 +33,12 @@ class N8nService {
 
   final Dio _dio;
 
-  Future<List<TrendingVideoModel>> fetchTrendingVideos({String? niche}) async {
+  Future<List<TrendingVideoModel>> fetchTrendingVideos({String? niche, String platform = 'tiktok'}) async {
+    final queryParams = <String, dynamic>{'platform': platform};
+    if (niche != null) queryParams['niche'] = niche;
     final response = await _dio.get(
       _pathGetTrends,
-      queryParameters: niche != null ? {'niche': niche} : null,
+      queryParameters: queryParams,
       options: Options(receiveTimeout: const Duration(seconds: 10)),
     );
     final data = response.data;

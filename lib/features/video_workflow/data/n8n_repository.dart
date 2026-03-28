@@ -11,8 +11,8 @@ class N8nRepository {
   const N8nRepository(this._service);
   final N8nService _service;
 
-  Future<List<TrendingVideoModel>> fetchTrendingVideos({String? niche}) =>
-      _service.fetchTrendingVideos(niche: niche);
+  Future<List<TrendingVideoModel>> fetchTrendingVideos({String? niche, String platform = 'tiktok'}) =>
+      _service.fetchTrendingVideos(niche: niche, platform: platform);
 
   Future<WorkflowStartResponse> startWorkflow({
     required String creatorId,
