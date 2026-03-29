@@ -41,7 +41,7 @@ class _InstagramTrendsScreenState extends ConsumerState<InstagramTrendsScreen> {
     });
     try {
       final dio = ref.read(dioProvider);
-      await dio.post('/n8n/trigger-scrape/', data: {"niche": niche});
+      await dio.post('/n8n/trigger-scrape/', data: {"niche": niche, "platform": "instagram"});
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Analyse de la niche "$niche" lancée... 🚀')),
