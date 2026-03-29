@@ -152,3 +152,33 @@ class AIScriptModel {
     );
   }
 }
+
+/// YouTube Generated Video model — mirrors backend YouTubeGeneratedSerializer response.
+class YouTubeGeneratedModel {
+  final int id;
+  final String title;
+  final String status;
+  final String niche;
+  final String videoUrl;
+  final String youtubeUrl;
+  
+  const YouTubeGeneratedModel({
+    required this.id,
+    required this.title,
+    required this.status,
+    required this.niche,
+    required this.videoUrl,
+    required this.youtubeUrl,
+  });
+
+  factory YouTubeGeneratedModel.fromJson(Map<String, dynamic> json) {
+    return YouTubeGeneratedModel(
+      id: json['id'] as int,
+      title: json['title'] as String? ?? 'Untitled Video',
+      status: json['status'] as String? ?? 'pending',
+      niche: json['niche'] as String? ?? '',
+      videoUrl: json['video_url'] as String? ?? '',
+      youtubeUrl: json['youtube_url'] as String? ?? '',
+    );
+  }
+}

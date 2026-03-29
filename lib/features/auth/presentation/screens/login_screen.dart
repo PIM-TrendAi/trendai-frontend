@@ -43,17 +43,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (auth.error is DioException) {
         final dioErr = auth.error as DioException;
         final responseData = dioErr.response?.data;
-        if (responseData is Map<String, dynamic>) {
-          if (responseData.containsKey('detail')) {
-            errorMessage = responseData['detail'].toString();
-          } else if (responseData.containsKey('non_field_errors')) {
-            errorMessage = (responseData['non_field_errors'] as List).first.toString();
-          } else if (responseData.containsKey('error')) {
-            errorMessage = responseData['error'].toString();
-          } else if (responseData.isNotEmpty) {
-            final firstVal = responseData.values.first;
-            errorMessage = firstVal is List ? firstVal.first.toString() : firstVal.toString();
+
+        String? extractMessage(dynamic value) {
+          if (value is String && value.trim().isNotEmpty) return value;
+          if (value is List && value.isNotEmpty) {
+            final first = extractMessage(value.first);
+            if (first != null) return first;
           }
+          if (value is Map<String, dynamic>) {
+            if (value['error'] is String &&
+                (value['error'] as String).trim().isNotEmpty) {
+              return value['error'] as String;
+            }
+            if (value['detail'] is String &&
+                (value['detail'] as String).trim().isNotEmpty) {
+              return value['detail'] as String;
+            }
+            if (value['details'] != null) {
+              final detailsMsg = extractMessage(value['details']);
+              if (detailsMsg != null) return detailsMsg;
+            }
+            for (final nested in value.values) {
+              final nestedMsg = extractMessage(nested);
+              if (nestedMsg != null) return nestedMsg;
+            }
+          }
+          return null;
+        }
+
+        if (responseData is Map<String, dynamic>) {
+          final msg = extractMessage(responseData);
+          if (msg != null) errorMessage = msg;
         } else {
           errorMessage = dioErr.message ?? 'Network error';
         }
@@ -89,12 +109,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   children: [
                     const SizedBox(height: 32),
                     Text('Welcome Back 👋',
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineMedium
+                            ?.copyWith(
                               fontWeight: FontWeight.w800,
                             )),
                     const SizedBox(height: 8),
                     Text('Sign in to continue creating',
-                        style: TextStyle(color: AppColors.textMuted, fontSize: 15)),
+                        style: TextStyle(
+                            color: AppColors.textMuted, fontSize: 15)),
                     const SizedBox(height: 40),
 
                     // Email
@@ -105,8 +129,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         hintText: 'Email',
                         prefixIcon: Icon(Icons.email_outlined),
                       ),
-                      validator: (v) =>
-                          v == null || !v.contains('@') ? 'Enter a valid email' : null,
+                      validator: (v) {
+                        final email = v?.trim() ?? '';
+                        final emailRegex =
+                            RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+                        if (!emailRegex.hasMatch(email))
+                          return 'Enter a valid email';
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 16),
 
@@ -118,12 +148,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         hintText: 'Password',
                         prefixIcon: const Icon(Icons.lock_outline_rounded),
                         suffixIcon: IconButton(
-                          icon: Icon(_showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined),
-                          onPressed: () => setState(() => _showPassword = !_showPassword),
+                          icon: Icon(_showPassword
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined),
+                          onPressed: () =>
+                              setState(() => _showPassword = !_showPassword),
                         ),
                       ),
-                      validator: (v) =>
-                          v == null || v.length < 6 ? 'Password too short' : null,
+                      validator: (v) => v == null || v.length < 6
+                          ? 'Password too short'
+                          : null,
                     ),
                     const SizedBox(height: 12),
 
@@ -135,19 +169,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           children: [
                             Checkbox(
                               value: _rememberMe,
-                              onChanged: (v) => setState(() => _rememberMe = v!),
+                              onChanged: (v) =>
+                                  setState(() => _rememberMe = v!),
                               activeColor: AppColors.primary,
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(4)),
                             ),
                             Text('Remember me',
-                                style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                                style: TextStyle(
+                                    color: AppColors.textMuted, fontSize: 13)),
                           ],
                         ),
                         TextButton(
                           onPressed: () {},
                           child: Text('Forgot password?',
-                              style: TextStyle(color: AppColors.primary, fontSize: 13)),
+                              style: TextStyle(
+                                  color: AppColors.primary, fontSize: 13)),
                         ),
                       ],
                     ),
@@ -166,7 +203,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       Expanded(child: Divider(color: Colors.white12)),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text('or', style: TextStyle(color: AppColors.textMuted)),
+                        child: Text('or',
+                            style: TextStyle(color: AppColors.textMuted)),
                       ),
                       Expanded(child: Divider(color: Colors.white12)),
                     ]),
@@ -196,7 +234,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           onTap: () => context.go('/signup'),
                           child: Text('Sign Up',
                               style: TextStyle(
-                                  color: AppColors.primary, fontWeight: FontWeight.w600)),
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w600)),
                         ),
                       ],
                     ),
@@ -212,7 +251,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 }
 
 class _SocialButton extends StatelessWidget {
-  const _SocialButton({required this.icon, required this.label, required this.onTap});
+  const _SocialButton(
+      {required this.icon, required this.label, required this.onTap});
   final Widget icon;
   final String label;
   final VoidCallback onTap;

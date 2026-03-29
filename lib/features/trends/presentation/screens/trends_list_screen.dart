@@ -8,12 +8,22 @@ import '../../../../shared/widgets/shared_widgets.dart';
 import '../../../auth/data/models.dart';
 import 'package:dio/dio.dart';
 
-final _allTrendsProvider = FutureProvider.family<List<TrendModel>, Map<String, String>>(
-  (ref, params) async {
+typedef _TrendsQuery = ({String sort, String? platform});
+
+final _allTrendsProvider =
+    FutureProvider.family<List<TrendModel>, _TrendsQuery>(
+  (ref, query) async {
+    final params = <String, String>{'sort': query.sort};
+    if (query.platform != null) {
+      params['platform'] = query.platform!;
+    }
+
     final dio = ref.read(dioProvider);
     final res = await dio.get('/trends/', queryParameters: params);
     final list = res.data['results'] as List? ?? res.data as List;
-    return list.map((e) => TrendModel.fromJson(e as Map<String, dynamic>)).toList();
+    return list
+        .map((e) => TrendModel.fromJson(e as Map<String, dynamic>))
+        .toList();
   },
 );
 
@@ -36,9 +46,11 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final params = <String, String>{'sort': _sort};
-    if (_platform != 'All') params['platform'] = _platform;
-    final trendsAsync = ref.watch(_allTrendsProvider(params));
+    final query = (
+      sort: _sort,
+      platform: _platform == 'All' ? null : _platform,
+    );
+    final trendsAsync = ref.watch(_allTrendsProvider(query));
 
     return Scaffold(
       body: Stack(
@@ -46,13 +58,16 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
           const AnimatedParticleBackground(),
           Column(
             children: [
-              TrendAIAppBar(title: 'Trending Now', subtitle: 'Real-time • Multi-platform'),
+              TrendAIAppBar(
+                  title: 'Trending Now',
+                  subtitle: 'Real-time • Multi-platform'),
 
               // Platform filter chips
               SizedBox(
                 height: 52,
                 child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   scrollDirection: Axis.horizontal,
                   separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemCount: _platforms.length,
@@ -62,16 +77,22 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
                       onTap: () => setState(() => _platform = _platforms[i]),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 6),
                         decoration: BoxDecoration(
                           gradient: active ? AppColors.gradientPrimary : null,
-                          color: active ? null : Colors.white.withValues(alpha: 0.06),
+                          color: active
+                              ? null
+                              : Colors.white.withValues(alpha: 0.06),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.white.withValues(alpha: active ? 0 : 0.12)),
+                          border: Border.all(
+                              color: Colors.white
+                                  .withValues(alpha: active ? 0 : 0.12)),
                         ),
                         child: Text(_platforms[i],
                             style: TextStyle(
-                              color: active ? Colors.white : AppColors.textMuted,
+                              color:
+                                  active ? Colors.white : AppColors.textMuted,
                               fontWeight: FontWeight.w600,
                               fontSize: 13,
                             )),
@@ -86,9 +107,11 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
                 child: Row(
                   children: [
-                    Icon(Icons.filter_list_rounded, color: AppColors.primary, size: 18),
+                    Icon(Icons.filter_list_rounded,
+                        color: AppColors.primary, size: 18),
                     const SizedBox(width: 8),
-                    const Text('Sort by', style: TextStyle(fontWeight: FontWeight.w600)),
+                    const Text('Sort by',
+                        style: TextStyle(fontWeight: FontWeight.w600)),
                     const Spacer(),
                     ..._sortOptions.map((opt) {
                       final (label, value) = opt;
@@ -97,16 +120,20 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
                         onTap: () => setState(() => _sort = value),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 5),
                           margin: const EdgeInsets.only(left: 6),
                           decoration: BoxDecoration(
                             gradient: active ? AppColors.gradientPrimary : null,
-                            color: active ? null : Colors.white.withValues(alpha: 0.06),
+                            color: active
+                                ? null
+                                : Colors.white.withValues(alpha: 0.06),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(label,
                               style: TextStyle(
-                                color: active ? Colors.white : AppColors.textMuted,
+                                color:
+                                    active ? Colors.white : AppColors.textMuted,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 12,
                               )),
@@ -126,12 +153,15 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
                     itemCount: trends.length,
                     itemBuilder: (ctx, i) => _TrendCard(trend: trends[i]),
                   ),
-                  loading: () => const Center(child: CircularProgressIndicator()),
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
                   error: (err, stack) {
                     debugPrint('Error loading trends: $err');
                     String errorMessage = 'Failed to load trends';
                     if (err is DioException) {
-                      errorMessage = err.response?.data?.toString() ?? err.message ?? 'Network error';
+                      errorMessage = err.response?.data?.toString() ??
+                          err.message ??
+                          'Network error';
                     } else {
                       errorMessage = err.toString();
                     }
@@ -139,10 +169,12 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.warning_rounded, size: 60, color: AppColors.error),
+                          Icon(Icons.warning_rounded,
+                              size: 60, color: AppColors.error),
                           const SizedBox(height: 12),
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 24.0),
                             child: Text(
                               errorMessage,
                               textAlign: TextAlign.center,
@@ -151,7 +183,8 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
                           ),
                           const SizedBox(height: 16),
                           ElevatedButton(
-                            onPressed: () => ref.invalidate(_allTrendsProvider(params)),
+                            onPressed: () =>
+                                ref.invalidate(_allTrendsProvider(query)),
                             child: const Text('Retry'),
                           ),
                         ],
@@ -163,7 +196,9 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
             ],
           ),
           Positioned(
-            left: 0, right: 0, bottom: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
             child: const TrendAIBottomNav(currentIndex: 1),
           ),
         ],
@@ -197,7 +232,8 @@ class _TrendCard extends StatelessWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(trend.hashtag,
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700, fontSize: 15)),
                         ),
                       ]),
                       const SizedBox(height: 8),
@@ -205,7 +241,8 @@ class _TrendCard extends StatelessWidget {
                         PlatformBadge(platform: trend.platform),
                         const SizedBox(width: 8),
                         Text('${trend.views} views',
-                            style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                            style: TextStyle(
+                                color: AppColors.textMuted, fontSize: 12)),
                       ]),
                     ],
                   ),
@@ -214,12 +251,17 @@ class _TrendCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.arrow_upward_rounded, color: AppColors.success, size: 16),
+                        Icon(Icons.arrow_upward_rounded,
+                            color: AppColors.success, size: 16),
                         Text('${trend.growth.toInt()}%',
-                            style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w700)),
+                            style: TextStyle(
+                                color: AppColors.success,
+                                fontWeight: FontWeight.w700)),
                       ],
                     ),
-                    Text('Growth', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                    Text('Growth',
+                        style: TextStyle(
+                            color: AppColors.textMuted, fontSize: 11)),
                   ],
                 ),
               ],
@@ -227,7 +269,8 @@ class _TrendCard extends StatelessWidget {
             const SizedBox(height: 12),
             Row(
               children: [
-                Text('Trend Score', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                Text('Trend Score',
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
                 const Spacer(),
                 GradientText('${trend.score.toInt()}%',
                     style: const TextStyle(fontWeight: FontWeight.w700)),

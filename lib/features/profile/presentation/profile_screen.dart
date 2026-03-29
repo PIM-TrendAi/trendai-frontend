@@ -8,9 +8,19 @@ import '../../../../core/theme/theme_provider.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
 import '../../auth/auth_repository.dart';
 
-final _platformsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+final _platformsProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final res = await ref.read(dioProvider).get('/platforms/');
   return List<Map<String, dynamic>>.from(res.data);
+});
+
+final _ytStatusProvider = FutureProvider<bool>((ref) async {
+  try {
+    final res = await ref.read(dioProvider).get('/analytics/youtube/status/');
+    return res.data['connected'] == true;
+  } catch (_) {
+    return false;
+  }
 });
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -22,11 +32,92 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _notifications = true;
 
-  Future<void> _togglePlatform(Map<String, dynamic> platform) async {
-    try {
-      await ref.read(dioProvider).patch('/platforms/${platform['id']}/');
-      ref.invalidate(_platformsProvider);
-    } catch (_) {}
+  void _showYouTubeConnectDialog(BuildContext context, WidgetRef ref) {
+    final apiKeyCtrl = TextEditingController();
+    final channelIdCtrl = TextEditingController();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF0F111E) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: AppColors.youtube, borderRadius: BorderRadius.circular(10)),
+            child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 18),
+          ),
+          const SizedBox(width: 10),
+          const Text('Connect YouTube', style: TextStyle(fontSize: 16)),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Enter your YouTube API Key and Channel ID to see your real video stats.',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: apiKeyCtrl,
+              decoration: const InputDecoration(
+                labelText: 'YouTube API Key',
+                hintText: 'AIzaSy...',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.key_rounded),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: channelIdCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Channel ID (optional)',
+                hintText: 'UCxxxxxxxxxxxxxxxx',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.person_outline_rounded),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c),
+            child: Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.youtube,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () async {
+              final key = apiKeyCtrl.text.trim();
+              if (key.isEmpty) return;
+              Navigator.pop(c);
+              try {
+                await ref.read(dioProvider).get('/analytics/youtube/connect/', queryParameters: {
+                  'api_key': key,
+                  'channel_id': channelIdCtrl.text.trim(),
+                });
+                ref.invalidate(_ytStatusProvider);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('✅ YouTube connected!'), backgroundColor: Colors.green),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Connection failed: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Connect', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -44,7 +135,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           if (isDark) const AnimatedParticleBackground(),
           Column(
             children: [
-              const TrendAIAppBar(title: 'Profile', subtitle: 'Manage your account • Preferences'),
+              const TrendAIAppBar(
+                  title: 'Profile',
+                  subtitle: 'Manage your account • Preferences'),
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
@@ -53,15 +146,29 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     children: [
                       // ── Avatar + Name Card
                       Container(
-                        padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 32, horizontal: 16),
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF0F111E) : Colors.white,
+                          color:
+                              isDark ? const Color(0xFF0F111E) : Colors.white,
                           borderRadius: BorderRadius.circular(24),
                           boxShadow: isDark
-                              ? [BoxShadow(color: AppColors.primary.withValues(alpha: 0.15), blurRadius: 40)]
-                              : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 20)],
+                              ? [
+                                  BoxShadow(
+                                      color: AppColors.primary
+                                          .withValues(alpha: 0.15),
+                                      blurRadius: 40)
+                                ]
+                              : [
+                                  BoxShadow(
+                                      color:
+                                          Colors.black.withValues(alpha: 0.05),
+                                      blurRadius: 20)
+                                ],
                           border: Border.all(
-                            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.transparent,
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.05)
+                                : Colors.transparent,
                           ),
                         ),
                         child: Column(
@@ -72,22 +179,37 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               decoration: BoxDecoration(
                                 gradient: AppColors.gradientPrimary,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 3),
-                                boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: 0.3), blurRadius: 20)],
+                                border: Border.all(
+                                    color: AppColors.primary
+                                        .withValues(alpha: 0.3),
+                                    width: 3),
+                                boxShadow: [
+                                  BoxShadow(
+                                      color: AppColors.primary
+                                          .withValues(alpha: 0.3),
+                                      blurRadius: 20)
+                                ],
                               ),
                               child: Center(
                                 child: Text(
-                                  user?.name.isNotEmpty == true ? user!.name[0].toUpperCase() : '?',
-                                  style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: Colors.white),
+                                  user?.name.isNotEmpty == true
+                                      ? user!.name[0].toUpperCase()
+                                      : '?',
+                                  style: const TextStyle(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white),
                                 ),
                               ),
                             ),
                             const SizedBox(height: 16),
                             Text(user?.name ?? 'Loading...',
-                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w800, fontSize: 20)),
                             const SizedBox(height: 4),
                             Text(user?.email ?? '',
-                                style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                                style: TextStyle(
+                                    color: AppColors.textMuted, fontSize: 13)),
                           ],
                         ),
                       ),
@@ -97,9 +219,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.05)
+                              : Colors.white,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.grey.shade200),
+                          border: Border.all(
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.1)
+                                  : Colors.grey.shade200),
                         ),
                         child: Row(
                           children: [
@@ -108,9 +235,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               decoration: BoxDecoration(
                                 color: AppColors.warning,
                                 borderRadius: BorderRadius.circular(12),
-                                boxShadow: [BoxShadow(color: AppColors.warning.withValues(alpha: 0.3), blurRadius: 10)],
+                                boxShadow: [
+                                  BoxShadow(
+                                      color: AppColors.warning
+                                          .withValues(alpha: 0.3),
+                                      blurRadius: 10)
+                                ],
                               ),
-                              child: const Icon(Icons.workspace_premium_rounded, color: Colors.white, size: 24),
+                              child: const Icon(Icons.workspace_premium_rounded,
+                                  color: Colors.white, size: 24),
                             ),
                             const SizedBox(width: 16),
                             Expanded(
@@ -119,27 +252,50 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 children: [
                                   Row(
                                     children: [
-                                      const Text('Pro Plan', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                                      const Text('Pro Plan',
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 15)),
                                       const SizedBox(width: 8),
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                        decoration: BoxDecoration(color: AppColors.success, borderRadius: BorderRadius.circular(10)),
-                                        child: const Text('Active', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                            color: AppColors.success,
+                                            borderRadius:
+                                                BorderRadius.circular(10)),
+                                        child: const Text('Active',
+                                            style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w700)),
                                       ),
                                     ],
                                   ),
                                   const SizedBox(height: 2),
-                                  Text('Unlimited access', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                                  Text('Unlimited access',
+                                      style: TextStyle(
+                                          color: AppColors.textMuted,
+                                          fontSize: 12)),
                                 ],
                               ),
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
                               decoration: BoxDecoration(
-                                color: isDark ? Colors.white.withValues(alpha: 0.15) : AppColors.backgroundLight,
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.15)
+                                    : AppColors.backgroundLight,
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Text('Upgrade', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: isDark ? Colors.white : AppColors.textLight)),
+                              child: Text('Upgrade',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                      color: isDark
+                                          ? Colors.white
+                                          : AppColors.textLight)),
                             ),
                           ],
                         ),
@@ -148,10 +304,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                       // ── Connected Platforms
                       Text('Connected Platforms',
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w700)),
                       const SizedBox(height: 12),
-                      platformsAsync.when(
-                        data: (platforms) => Column(
+                      // YouTube connection status
+                      ref.watch(_ytStatusProvider).when(
+                        data: (isYtConnected) => Column(
                           children: [
                             _PlatformCard(
                               name: 'TikTok',
@@ -169,11 +329,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             ),
                             _PlatformCard(
                               name: 'YouTube',
-                              isConnected: false,
+                              isConnected: isYtConnected,
                               iconColor: AppColors.youtube,
-                              iconData: Icons.link_rounded,
-                              isPrimaryAction: true,
-                              onAction: () {},
+                              iconData: Icons.play_arrow_rounded,
+                              isPrimaryAction: !isYtConnected,
+                              onAction: () async {
+                                if (isYtConnected) {
+                                  // Disconnect
+                                  await ref.read(dioProvider).post('/analytics/youtube/disconnect/');
+                                  ref.invalidate(_ytStatusProvider);
+                                } else {
+                                  // Show connect dialog
+                                  _showYouTubeConnectDialog(context, ref);
+                                }
+                              },
                             ),
                             _PlatformCard(
                               name: 'Facebook',
@@ -186,19 +355,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           ],
                         ),
                         loading: () => const Center(child: CircularProgressIndicator()),
-                        error: (_, __) => Text('Could not load platforms', style: TextStyle(color: AppColors.textMuted)),
+                        error: (_, __) => Text('Could not load platforms',
+                            style: TextStyle(color: AppColors.textMuted)),
                       ),
                       const SizedBox(height: 24),
 
                       // ── Settings
                       Text('Settings',
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w700)),
                       const SizedBox(height: 12),
                       Container(
                         decoration: BoxDecoration(
-                          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.05)
+                              : Colors.white,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.grey.shade200),
+                          border: Border.all(
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.1)
+                                  : Colors.grey.shade200),
                         ),
                         child: Column(
                           children: [
@@ -207,38 +385,56 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               label: 'Notifications',
                               child: Switch.adaptive(
                                 value: _notifications,
-                                onChanged: (v) => setState(() => _notifications = v),
+                                onChanged: (v) =>
+                                    setState(() => _notifications = v),
                                 activeColor: AppColors.primary,
                               ),
                             ),
-                            Divider(color: isDark ? Colors.white10 : Colors.grey.shade200, height: 1),
+                            Divider(
+                                color: isDark
+                                    ? Colors.white10
+                                    : Colors.grey.shade200,
+                                height: 1),
                             _SettingRow(
                               icon: Icons.light_mode_outlined,
                               label: 'Dark Mode',
                               child: Switch.adaptive(
                                 value: themeMode == ThemeMode.dark,
                                 onChanged: (v) {
-                                  ref.read(themeModeProvider.notifier).state = v ? ThemeMode.dark : ThemeMode.light;
+                                  ref.read(themeModeProvider.notifier).state =
+                                      v ? ThemeMode.dark : ThemeMode.light;
                                 },
                                 activeColor: AppColors.primary,
                               ),
                             ),
-                            Divider(color: isDark ? Colors.white10 : Colors.grey.shade200, height: 1),
+                            Divider(
+                                color: isDark
+                                    ? Colors.white10
+                                    : Colors.grey.shade200,
+                                height: 1),
                             _SettingRow(
                               icon: Icons.sync_rounded,
                               label: 'Data Refresh Interval',
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: isDark ? Colors.white.withValues(alpha: 0.05) : AppColors.backgroundLight,
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.05)
+                                      : AppColors.backgroundLight,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Text('15 min', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                                    Text('15 min',
+                                        style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w500)),
                                     const SizedBox(width: 4),
-                                    const Icon(Icons.keyboard_arrow_down_rounded, size: 16),
+                                    const Icon(
+                                        Icons.keyboard_arrow_down_rounded,
+                                        size: 16),
                                   ],
                                 ),
                               ),
@@ -248,27 +444,97 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ),
                       const SizedBox(height: 32),
 
+                      // ── Quick actions
+                      Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => context.push('/my-videos'),
+                              child: Container(
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  gradient: AppColors.gradientPrimary,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.video_collection_rounded,
+                                        color: Colors.white, size: 18),
+                                    SizedBox(width: 8),
+                                    Text('My Videos',
+                                        style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w700)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => context.go('/category-selection'),
+                              child: Container(
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.08)
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                      color: isDark
+                                          ? Colors.white.withValues(alpha: 0.14)
+                                          : Colors.grey.shade200),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.category_rounded,
+                                        color: AppColors.primary, size: 18),
+                                    const SizedBox(width: 8),
+                                    const Text('Change Niche',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w700)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
 
                       // ── Logout
                       GestureDetector(
                         onTap: () async {
-                          await ref.read(authNotifierProvider.notifier).logout();
+                          await ref
+                              .read(authNotifierProvider.notifier)
+                              .logout();
                           if (context.mounted) context.go('/login');
                         },
                         child: Container(
                           width: double.infinity,
                           height: 56,
                           decoration: BoxDecoration(
-                            color: isDark ? AppColors.error.withValues(alpha: 0.12) : AppColors.error.withValues(alpha: 0.1),
+                            color: isDark
+                                ? AppColors.error.withValues(alpha: 0.12)
+                                : AppColors.error.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                            border: Border.all(
+                                color: AppColors.error.withValues(alpha: 0.3)),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: const [
-                              Icon(Icons.logout_rounded, color: AppColors.error),
+                              Icon(Icons.logout_rounded,
+                                  color: AppColors.error),
                               SizedBox(width: 10),
-                              Text('Logout', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w600, fontSize: 15)),
+                              Text('Logout',
+                                  style: TextStyle(
+                                      color: AppColors.error,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 15)),
                             ],
                           ),
                         ),
@@ -280,7 +546,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ],
           ),
           Positioned(
-            left: 0, right: 0, bottom: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
             child: const TrendAIBottomNav(currentIndex: 4),
           ),
         ],
@@ -316,13 +584,17 @@ class _PlatformCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.grey.shade200),
+        border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.1)
+                : Colors.grey.shade200),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: iconColor, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+                color: iconColor, borderRadius: BorderRadius.circular(12)),
             child: Icon(iconData, color: Colors.white, size: 20),
           ),
           const SizedBox(width: 16),
@@ -330,7 +602,9 @@ class _PlatformCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                Text(name,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 15)),
                 const SizedBox(height: 2),
                 Row(
                   children: [
@@ -338,7 +612,9 @@ class _PlatformCard extends StatelessWidget {
                       width: 6,
                       height: 6,
                       decoration: BoxDecoration(
-                        color: isConnected ? AppColors.success : AppColors.textMuted,
+                        color: isConnected
+                            ? AppColors.success
+                            : AppColors.textMuted,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -346,7 +622,9 @@ class _PlatformCard extends StatelessWidget {
                     Text(
                       isConnected ? 'Connected' : 'Not connected',
                       style: TextStyle(
-                        color: isConnected ? AppColors.success : AppColors.textMuted,
+                        color: isConnected
+                            ? AppColors.success
+                            : AppColors.textMuted,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
@@ -361,13 +639,19 @@ class _PlatformCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: isPrimaryAction ? AppColors.primary : (isDark ? Colors.white.withValues(alpha: 0.1) : AppColors.backgroundLight),
+                color: isPrimaryAction
+                    ? AppColors.primary
+                    : (isDark
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : AppColors.backgroundLight),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
                 isPrimaryAction ? 'Connect' : 'Disconnect',
                 style: TextStyle(
-                  color: isPrimaryAction ? Colors.white : (isDark ? Colors.white : AppColors.textLight),
+                  color: isPrimaryAction
+                      ? Colors.white
+                      : (isDark ? Colors.white : AppColors.textLight),
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -381,7 +665,8 @@ class _PlatformCard extends StatelessWidget {
 }
 
 class _SettingRow extends StatelessWidget {
-  const _SettingRow({required this.icon, required this.label, required this.child});
+  const _SettingRow(
+      {required this.icon, required this.label, required this.child});
   final IconData icon;
   final String label;
   final Widget child;
@@ -392,9 +677,15 @@ class _SettingRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(icon, color: Theme.of(context).brightness == Brightness.dark ? AppColors.textMuted : AppColors.textMuted, size: 20),
+          Icon(icon,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? AppColors.textMuted
+                  : AppColors.textMuted,
+              size: 20),
           const SizedBox(width: 12),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
+          Text(label,
+              style:
+                  const TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
           const Spacer(),
           child,
         ],

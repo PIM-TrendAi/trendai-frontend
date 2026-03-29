@@ -47,7 +47,13 @@ class TrendAIAppBar extends StatelessWidget implements PreferredSizeWidget {
             children: [
               if (showBack)
                 GestureDetector(
-                  onTap: () => context.pop(),
+                  onTap: () {
+                    if (context.canPop()) {
+                      context.pop();
+                    } else {
+                      context.go('/dashboard');
+                    }
+                  },
                   child: Container(
                     width: 36,
                     height: 36,

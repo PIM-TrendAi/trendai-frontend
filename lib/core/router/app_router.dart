@@ -13,6 +13,7 @@ import '../../features/trends/presentation/screens/trend_detail_screen.dart';
 import '../../features/ai_generator/presentation/ai_generator_screen.dart';
 import '../../features/analytics/presentation/analytics_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/my_videos/presentation/my_videos_screen.dart';
 import '../storage/secure_storage.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -33,21 +34,39 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
-      GoRoute(path: '/onboarding-1', builder: (_, __) => const OnboardingScreen(page: 1)),
-      GoRoute(path: '/onboarding-2', builder: (_, __) => const OnboardingScreen(page: 2)),
-      GoRoute(path: '/onboarding-3', builder: (_, __) => const OnboardingScreen(page: 3)),
+      GoRoute(
+          path: '/onboarding-1',
+          builder: (_, __) => const OnboardingScreen(page: 1)),
+      GoRoute(
+          path: '/onboarding-2',
+          builder: (_, __) => const OnboardingScreen(page: 2)),
+      GoRoute(
+          path: '/onboarding-3',
+          builder: (_, __) => const OnboardingScreen(page: 3)),
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/signup', builder: (_, __) => const SignUpScreen()),
-      GoRoute(path: '/category-selection', builder: (_, __) => const CategorySelectionScreen()),
+      GoRoute(
+          path: '/category-selection',
+          builder: (_, __) => const CategorySelectionScreen()),
       GoRoute(path: '/dashboard', builder: (_, __) => const DashboardScreen()),
       GoRoute(path: '/trends', builder: (_, __) => const TrendsListScreen()),
       GoRoute(
         path: '/trend/:id',
-        builder: (_, state) => TrendDetailScreen(id: int.parse(state.pathParameters['id']!)),
+        builder: (_, state) =>
+            TrendDetailScreen(id: int.parse(state.pathParameters['id']!)),
       ),
-      GoRoute(path: '/ai-generator', builder: (_, __) => const AIGeneratorScreen()),
+      GoRoute(
+          path: '/ai-generator', builder: (_, __) => const AIGeneratorScreen()),
       GoRoute(path: '/analytics', builder: (_, __) => const AnalyticsScreen()),
-      GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
+      GoRoute(
+        path: '/profile',
+        builder: (_, __) => const ProfileScreen(),
+        routes: [
+          GoRoute(path: 'my-videos', builder: (_, __) => const MyVideosScreen()),
+        ],
+      ),
+      // Keep flat route for dashboard shortcut (uses push)
+      GoRoute(path: '/my-videos', builder: (_, __) => const MyVideosScreen()),
     ],
   );
 });
