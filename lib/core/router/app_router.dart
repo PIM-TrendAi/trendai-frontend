@@ -18,6 +18,8 @@ import '../../features/video_workflow/presentation/screens/video_generation_scre
 import '../../features/video_workflow/presentation/screens/video_review_screen.dart';
 import '../../features/my_videos/presentation/my_videos_screen.dart';
 import '../../features/tiktok_stats/presentation/tiktok_stats_screen.dart';
+import '../../features/instagram/presentation/screens/instagram_trends_screen.dart';
+import '../../features/ai_generator/presentation/ai_generator_screen.dart';
 import '../storage/secure_storage.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -59,7 +61,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/trend/:id',
         builder: (_, state) => TrendDetailScreen(id: int.parse(state.pathParameters['id']!)),
       ),
-      GoRoute(path: '/ai-generator', builder: (_, __) => const VideoPickerScreen()),
+      GoRoute(
+        path: '/ai-generator',
+        builder: (_, state) => AIGeneratorScreen(
+          niche: state.uri.queryParameters['niche'],
+          selectedVideoId: state.uri.queryParameters['selectedVideoId'],
+        ),
+      ),
       GoRoute(path: '/analytics', builder: (_, __) => const AnalyticsScreen()),
       GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
       GoRoute(path: '/video-picker', builder: (_, __) => const VideoPickerScreen()),
@@ -68,6 +76,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/video-review', builder: (_, __) => const VideoReviewScreen()),
       GoRoute(path: '/my-videos', builder: (_, __) => const MyVideosScreen()),
       GoRoute(path: '/tiktok-stats', builder: (_, __) => const TikTokStatsScreen()),
+      GoRoute(path: '/instagram-engine', builder: (_, __) => const InstagramTrendsScreen()),
     ],
   );
 });

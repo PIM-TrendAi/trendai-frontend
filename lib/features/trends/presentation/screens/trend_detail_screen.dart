@@ -128,9 +128,9 @@ class TrendDetailScreen extends ConsumerWidget {
 
                       // ── Action Buttons
                       GradientButton(
-                        label: 'Generate Script',
+                        label: 'Generate Video with IA',
                         icon: Icons.auto_awesome_rounded,
-                        onPressed: () => context.go('/ai-generator'),
+                        onPressed: () => context.go('/ai-generator?niche=${Uri.encodeComponent(trend.hashtag)}'),
                       ),
                       const SizedBox(height: 12),
                       _SaveTrendButton(trendId: trend.id, isSaved: trend.isSaved, ref: ref),
