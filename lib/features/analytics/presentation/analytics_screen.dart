@@ -31,6 +31,11 @@ final _platformProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async
   return List<Map<String, dynamic>>.from(res.data['data']);
 });
 
+final _instagramStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  final res = await ref.read(dioProvider).get('/analytics/instagram/');
+  return res.data as Map<String, dynamic>;
+});
+
 // ── WebSocket config
 String get _wsBase => '${ServerConfig.wsBase}/ws/tiktok-stats/';
 const _reconnectDelay = Duration(seconds: 5);
@@ -124,6 +129,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     final summaryAsync = ref.watch(_analyticsSummaryProvider);
     final engagementAsync = ref.watch(_engagementProvider);
     final platformAsync = ref.watch(_platformProvider);
+    final instagramAsync = ref.watch(_instagramStatsProvider);
 
     return Scaffold(
       body: Stack(
@@ -147,6 +153,14 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                         loading: _wsLoading,
                         error: _wsError,
                         onRetry: _connectWs,
+                      ),
+                      const SizedBox(height: 24),
+
+                      // ── Instagram Stats section (REST API)
+                      instagramAsync.when(
+                        data: (igData) => _InstagramStatsSection(data: igData),
+                        loading: () => const SizedBox.shrink(),
+                        error: (_, __) => const SizedBox.shrink(),
                       ),
                       const SizedBox(height: 24),
 
@@ -584,5 +598,210 @@ class _PostingHeatmap extends StatelessWidget {
         ]),
       ],
     );
+  }
+}
+
+// ─────────────────────────────────────────────
+// Instagram Stats Section
+// ─────────────────────────────────────────────
+const _instagramColor = Color(0xFFE1306C);
+
+class _InstagramStatsSection extends StatelessWidget {
+  const _InstagramStatsSection({required this.data});
+  final Map<String, dynamic> data;
+
+  @override
+  Widget build(BuildContext context) {
+    final connected = data['connected'] == true;
+    if (!connected) return const SizedBox.shrink();
+
+    final summary = data['summary'] as Map<String, dynamic>? ?? {};
+    final media = List<Map<String, dynamic>>.from(data['media'] as List? ?? []);
+    final profile = data['profile'] as Map<String, dynamic>?;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section header
+        Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: _instagramColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.camera_alt_rounded, color: _instagramColor, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Instagram Stats',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                  if (profile != null && profile['username'] != null)
+                    Text('@${profile['username']}',
+                        style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text('Connected',
+                  style: TextStyle(fontSize: 10, color: AppColors.success, fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+
+        // Summary stats row
+        Row(
+          children: [
+            _IgMiniStat(icon: Icons.people_rounded, value: _fmt(summary['followers'] as int? ?? 0), label: 'Followers'),
+            _IgMiniStat(icon: Icons.favorite_rounded, value: _fmt(summary['total_likes'] as int? ?? 0), label: 'Likes'),
+            _IgMiniStat(icon: Icons.comment_rounded, value: _fmt(summary['total_comments'] as int? ?? 0), label: 'Comments'),
+            _IgMiniStat(icon: Icons.visibility_rounded, value: _fmt(summary['total_reach'] as int? ?? 0), label: 'Reach'),
+          ],
+        ),
+        const SizedBox(height: 14),
+
+        // Media list
+        if (media.isEmpty)
+          const GlassCard(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(child: Text('No Instagram posts yet',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 13))),
+            ),
+          )
+        else
+          ...media.map((m) => _IgMediaCard(media: m)),
+      ],
+    );
+  }
+
+  String _fmt(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return n.toString();
+  }
+}
+
+class _IgMiniStat extends StatelessWidget {
+  const _IgMiniStat({required this.icon, required this.value, required this.label});
+  final IconData icon;
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GlassCard(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        child: Column(
+          children: [
+            Icon(icon, size: 16, color: _instagramColor),
+            const SizedBox(height: 6),
+            Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+            const SizedBox(height: 2),
+            Text(label, style: const TextStyle(fontSize: 9, color: AppColors.textMuted)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IgMediaCard extends StatelessWidget {
+  const _IgMediaCard({required this.media});
+  final Map<String, dynamic> media;
+
+  @override
+  Widget build(BuildContext context) {
+    final caption = media['caption'] as String? ?? '';
+    final likes = media['likes'] as int? ?? 0;
+    final comments = media['comments'] as int? ?? 0;
+    final reach = media['reach'] as int? ?? 0;
+    final plays = media['plays'] as int? ?? 0;
+    final thumbnail = media['thumbnail_url'] as String? ?? '';
+    final permalink = media['permalink'] as String? ?? '';
+    final mediaType = media['media_type'] as String? ?? '';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: GestureDetector(
+        onTap: permalink.isNotEmpty
+            ? () => launchUrl(Uri.parse(permalink), mode: LaunchMode.externalApplication)
+            : null,
+        child: GlassCard(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: thumbnail.isNotEmpty
+                    ? Image.network(thumbnail, width: 72, height: 72, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _igThumb())
+                    : _igThumb(),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      caption.isNotEmpty ? caption : (mediaType == 'VIDEO' ? '🎬 Reel' : '📸 Post'),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                    ),
+                    const SizedBox(height: 7),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 5,
+                      children: [
+                        _igChip(Icons.favorite_rounded, _fmt(likes), 'likes', color: _instagramColor),
+                        _igChip(Icons.comment_rounded, _fmt(comments), 'comments'),
+                        _igChip(Icons.visibility_rounded, _fmt(reach), 'reach'),
+                        if (mediaType == 'VIDEO')
+                          _igChip(Icons.play_arrow_rounded, _fmt(plays), 'plays', color: AppColors.accent),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _igThumb() => Container(
+    width: 72, height: 72,
+    decoration: BoxDecoration(
+      color: _instagramColor.withValues(alpha: 0.15),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: const Icon(Icons.camera_alt_rounded, color: _instagramColor, size: 28),
+  );
+
+  Widget _igChip(IconData icon, String value, String label, {Color color = AppColors.textMuted}) =>
+      Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 3),
+        Text('$value $label', style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500)),
+      ]);
+
+  String _fmt(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return n.toString();
   }
 }

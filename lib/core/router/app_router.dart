@@ -66,6 +66,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => AIGeneratorScreen(
           niche: state.uri.queryParameters['niche'],
           selectedVideoId: state.uri.queryParameters['selectedVideoId'],
+          platform: state.uri.queryParameters['platform'],
         ),
       ),
       GoRoute(path: '/analytics', builder: (_, __) => const AnalyticsScreen()),

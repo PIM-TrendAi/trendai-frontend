@@ -98,7 +98,7 @@ class _InstagramTrendsScreenState extends ConsumerState<InstagramTrendsScreen> {
           const AnimatedParticleBackground(),
           Column(
             children: [
-              TrendAIAppBar(
+              const TrendAIAppBar(
                 title: 'Instagram Engine',
                 subtitle: 'Scrape & Generate',
                 showBack: true,
@@ -164,7 +164,7 @@ class _InstagramTrendsScreenState extends ConsumerState<InstagramTrendsScreen> {
                                     _isScraping 
                                         ? 'Analyse N8N en cours...' 
                                         : 'Aucune tendance en base de données.', 
-                                    style: TextStyle(color: AppColors.textMuted)
+                                    style: const TextStyle(color: AppColors.textMuted)
                                   ),
                                 ],
                               ),
@@ -190,9 +190,9 @@ class _InstagramTrendsScreenState extends ConsumerState<InstagramTrendsScreen> {
               ),
             ],
           ),
-          Positioned(
+          const Positioned(
             left: 0, right: 0, bottom: 0,
-            child: const TrendAIBottomNav(currentIndex: 1),
+            child: TrendAIBottomNav(currentIndex: 1),
           ),
         ],
       ),
@@ -211,7 +211,7 @@ class _NicheCard extends StatelessWidget {
     final category = video['category'] ?? 'Instagram';
 
     return GestureDetector(
-      onTap: () => context.push('/ai-generator?niche=${Uri.encodeComponent(title)}&selectedVideoId=$vid'),
+      onTap: () => context.push('/ai-generator?niche=${Uri.encodeComponent(title)}&selectedVideoId=$vid&platform=instagram'),
       child: GlassCard(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
