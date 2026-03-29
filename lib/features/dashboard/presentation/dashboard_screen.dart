@@ -42,6 +42,10 @@ class DashboardScreen extends ConsumerWidget {
                     _ViralScoreCard(score: 87),
                     const SizedBox(height: 28),
 
+                    // ── Instagram Section (Added)
+                    _InstagramScraperCard(),
+                    const SizedBox(height: 28),
+
                     // ── Trending Now
                     Row(
                       children: [
@@ -331,3 +335,51 @@ class _RecommendationCard extends StatelessWidget {
     );
   }
 }
+
+// ── Instagram Scraper Card
+class _InstagramScraperCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF833AB4), Color(0xFFFD1D1D), Color(0xFFFCB045)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text('Instagram Engine 🔥', 
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Scrape trending niches, choose your favorite, and generate a viral reel in seconds.',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.5),
+          ),
+          const SizedBox(height: 18),
+          GradientButton(
+            label: 'Explore Instagram Trends 🚀',
+            onPressed: () => context.go('/instagram-engine'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

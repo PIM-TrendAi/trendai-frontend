@@ -8,13 +8,13 @@ import '../storage/secure_storage.dart';
 
 // Change to your machine's IP when testing on physical device
 // Android emulator: 10.0.2.2, iOS simulator: 127.0.0.1
-final _baseUrl = Platform.isAndroid ? 'http://10.0.2.2:8000/api' : 'http://127.0.0.1:8000/api';
+final _baseUrl = 'http://192.168.100.201:8000/api';
 
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(BaseOptions(
     baseUrl: _baseUrl,
-    connectTimeout: const Duration(seconds: 10),
-    receiveTimeout: const Duration(seconds: 15),
+    connectTimeout: const Duration(seconds: 30),
+    receiveTimeout: const Duration(seconds: 60),
     headers: {'Content-Type': 'application/json'},
   ));
 
