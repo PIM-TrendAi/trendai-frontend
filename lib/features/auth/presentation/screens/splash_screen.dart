@@ -30,10 +30,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   Future<void> _navigate() async {
-    await Future.delayed(const Duration(milliseconds: 2200));
-    if (!mounted) return;
     final storage = ref.read(secureStorageProvider);
     final hasToken = await storage.hasTokens();
+    await Future.delayed(const Duration(milliseconds: 2200));
     if (!mounted) return;
     context.go(hasToken ? '/dashboard' : '/onboarding-1');
   }

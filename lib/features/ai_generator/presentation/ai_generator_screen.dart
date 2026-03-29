@@ -1,14 +1,23 @@
-/// AI Script Generator screen — prompt + style/duration/platform selectors,
-/// calls POST /api/scripts/generate/ and displays the structured result.
+/// AI Generator screen — Pick a trend (Facebook Reels grid) + prompt + Generate Script.
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
 import '../../auth/data/models.dart';
 
-final _generatedScriptProvider = StateProvider<AIScriptModel?>((_) => null);
+// ── Providers
+final _fbReelsProvider = FutureProvider.autoDispose<List<FacebookReelModel>>((ref) async {
+  final dio = ref.read(dioProvider);
+  final res = await dio.get('/trends/reels/');
+  final data = res.data;
+  final List<dynamic> raw = (data is Map) ? (data['results'] as List? ?? []) : (data as List? ?? []);
+  return raw.map((e) {
+    try { return FacebookReelModel.fromJson(e as Map<String, dynamic>); }
+    catch (_) { return null; }
+  }).whereType<FacebookReelModel>().where((r) => r.reelId != null).toList();
+});
 
 class AIGeneratorScreen extends ConsumerStatefulWidget {
   const AIGeneratorScreen({super.key});
@@ -18,14 +27,8 @@ class AIGeneratorScreen extends ConsumerStatefulWidget {
 
 class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
   final _promptCtrl = TextEditingController();
-  String _style = 'Informative';
-  String _duration = '60s';
-  String _platform = 'TikTok';
+  FacebookReelModel? _selectedTrend;
   bool _loading = false;
-
-  final styles = ['Funny', 'Informative', 'Dramatic', 'Casual'];
-  final durations = ['30s', '60s', '90s'];
-  final platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
 
   @override
   void dispose() {
@@ -33,23 +36,44 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
     super.dispose();
   }
 
-  Future<void> _generate() async {
-    if (_promptCtrl.text.trim().isEmpty) return;
+  Future<void> _generateScript() async {
+    if (_promptCtrl.text.trim().isEmpty && _selectedTrend == null) return;
     setState(() => _loading = true);
     try {
       final dio = ref.read(dioProvider);
-      final res = await dio.post('/scripts/generate/', data: {
-        'prompt': _promptCtrl.text.trim(),
-        'style': _style,
-        'duration': _duration,
-        'platform': _platform,
+      final reelId = _selectedTrend != null && _selectedTrend!.reelId != null
+          ? _selectedTrend!.reelId!
+          : 'app-gen-${DateTime.now().millisecondsSinceEpoch}';
+
+      final promptText = _promptCtrl.text.trim();
+      final defaultPrompt = _selectedTrend?.text ?? 'Create a viral Facebook video';
+
+      final niche = _selectedTrend?.niche ?? 'Facebook';
+      final finalPrompt = promptText.isNotEmpty ? promptText : defaultPrompt;
+
+      await dio.post('/scripts/videos/generate/', data: {
+        'reel_id': reelId,
+        'prompt': finalPrompt,
+        'niche': niche,
       });
-      final script = AIScriptModel.fromJson(res.data as Map<String, dynamic>);
-      ref.read(_generatedScriptProvider.notifier).state = script;
+
+      if (mounted) {
+        _promptCtrl.clear();
+        setState(() => _selectedTrend = null);
+        context.push('/script-review', extra: {
+          'reel_id': reelId,
+          'prompt': finalPrompt,
+          'niche': niche,
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Script generation failed. Is the server running?')),
+          SnackBar(
+            content: Text('Failed to trigger generation: ${e.toString()}'),
+            backgroundColor: const Color(0xFFE17055),
+            duration: const Duration(seconds: 4),
+          ),
         );
       }
     }
@@ -58,78 +82,37 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final script = ref.watch(_generatedScriptProvider);
+    final reelsAsync = ref.watch(_fbReelsProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       body: Stack(
         children: [
-          const AnimatedParticleBackground(),
+          if (isDark) const AnimatedParticleBackground(),
           Column(
             children: [
-              TrendAIAppBar(title: 'AI Script Generator', subtitle: 'Powered by TrendAI'),
+              const TrendAIAppBar(title: 'Pick a Trend', subtitle: 'Select a reel • Write your prompt'),
+
               Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Idea input
-                      GlassCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(children: [
-                              Icon(Icons.lightbulb_outline_rounded, color: AppColors.primary),
-                              const SizedBox(width: 8),
-                              const Text('Your Idea', style: TextStyle(fontWeight: FontWeight.w700)),
-                            ]),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: _promptCtrl,
-                              maxLines: 4,
-                              decoration: const InputDecoration(
-                                hintText: 'Describe what you want to create a script about...',
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Style
-                      _SectionLabel(label: '🎬 Style'),
-                      _ChipRow(options: styles, selected: _style, onSelect: (v) => setState(() => _style = v)),
-                      const SizedBox(height: 16),
-
-                      // Duration
-                      _SectionLabel(label: '⏱ Duration'),
-                      _ChipRow(options: durations, selected: _duration, onSelect: (v) => setState(() => _duration = v)),
-                      const SizedBox(height: 16),
-
-                      // Platform
-                      _SectionLabel(label: '📱 Platform'),
-                      _ChipRow(options: platforms, selected: _platform, onSelect: (v) => setState(() => _platform = v)),
-                      const SizedBox(height: 24),
-
-                      // Generate button
-                      GradientButton(
-                        label: 'Generate Script ✨',
-                        onPressed: _generate,
-                        isLoading: _loading,
-                      ),
-
-                      // Generated script output
-                      if (script != null) ...[
-                        const SizedBox(height: 28),
-                        _ScriptOutput(script: script),
-                      ],
-                    ],
-                  ),
+                child: reelsAsync.when(
+                  data: (reels) => _buildContent(context, reels, isDark),
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (_, __) => _buildContent(context, [], isDark),
                 ),
               ),
             ],
           ),
+
+          // ── Generate Script button pinned above bottom nav
+          Positioned(
+            left: 20, right: 20, bottom: 100,
+            child: GradientButton(
+              label: 'Generate Script',
+              onPressed: _generateScript,
+              isLoading: _loading,
+            ),
+          ),
+
           Positioned(
             left: 0, right: 0, bottom: 0,
             child: const TrendAIBottomNav(currentIndex: 2),
@@ -138,137 +121,264 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
       ),
     );
   }
-}
 
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({required this.label});
-  final String label;
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-    );
-  }
-}
-
-class _ChipRow extends StatelessWidget {
-  const _ChipRow({required this.options, required this.selected, required this.onSelect});
-  final List<String> options;
-  final String selected;
-  final ValueChanged<String> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 10,
-      children: options.map((o) {
-        final active = o == selected;
-        return GestureDetector(
-          onTap: () => onSelect(o),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-            decoration: BoxDecoration(
-              gradient: active ? AppColors.gradientPrimary : null,
-              color: active ? null : Colors.white.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: active ? 0 : 0.12)),
-            ),
-            child: Text(o,
-                style: TextStyle(
-                  color: active ? Colors.white : AppColors.textMuted,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                )),
+  Widget _buildContent(BuildContext context, List<FacebookReelModel> reels, bool isDark) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 180),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Prompt field
+          Text(
+            'Your prompt',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 13, fontWeight: FontWeight.w500),
           ),
-        );
-      }).toList(),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.6), width: 1.5),
+              color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.white,
+            ),
+            child: TextField(
+              controller: _promptCtrl,
+              maxLines: 3,
+              style: const TextStyle(fontSize: 15),
+              decoration: InputDecoration(
+                hintText: 'e.g. Focus on morning routines for busy people',
+                hintStyle: TextStyle(color: AppColors.textMuted.withValues(alpha: 0.6), fontSize: 14),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.all(16),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // ── Trend grid
+          if (reels.isNotEmpty) ...[
+            Text(
+              'Trending Facebook Reels',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 13, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 12),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 0.82,
+              ),
+              itemCount: reels.length > 6 ? 6 : reels.length,
+              itemBuilder: (_, i) => _ReelCard(
+                reel: reels[i],
+                isSelected: _selectedTrend?.id == reels[i].id,
+                onTap: () => setState(() {
+                  _selectedTrend = (_selectedTrend?.id == reels[i].id) ? null : reels[i];
+                }),
+              ),
+            ),
+          ] else ...[
+            // Empty state – show placeholder cards
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 0.82,
+              ),
+              itemCount: 4,
+              itemBuilder: (_, i) => _PlaceholderReelCard(index: i),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
 
-class _ScriptOutput extends StatelessWidget {
-  const _ScriptOutput({required this.script});
-  final AIScriptModel script;
-
-  void _copy(BuildContext context, String text) {
-    Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Copied to clipboard!'), duration: Duration(seconds: 1)),
-    );
-  }
+// ── Reel card (real data)
+class _ReelCard extends StatelessWidget {
+  const _ReelCard({required this.reel, required this.isSelected, required this.onTap});
+  final FacebookReelModel reel;
+  final bool isSelected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(children: [
-          Icon(Icons.auto_awesome_rounded, color: AppColors.primary),
-          const SizedBox(width: 8),
-          GradientText('Your Generated Script', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-        ]),
-        const SizedBox(height: 16),
-        _Block(label: '🎣 Hook', content: script.hook, context: context, onCopy: _copy),
-        const SizedBox(height: 12),
-        _Block(label: '📝 Script', content: script.script, context: context, onCopy: _copy),
-        const SizedBox(height: 12),
-        _Block(label: '📣 Call-to-Action', content: script.cta, context: context, onCopy: _copy),
-        const SizedBox(height: 16),
-        GlassCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    // Create a compact views text
+    String viewsText = '${reel.playCount} views';
+    if (reel.playCount >= 1000000) {
+      viewsText = '${(reel.playCount / 1000000).toStringAsFixed(1)}M views';
+    } else if (reel.playCount >= 1000) {
+      viewsText = '${(reel.playCount / 1000).toStringAsFixed(1)}K views';
+    }
+
+    // Extract first hashtag or use default
+    String displayTag = '#Trending';
+    if (reel.text != null && reel.text!.contains('#')) {
+      final tags = reel.text!.split(' ').where((w) => w.startsWith('#')).toList();
+      if (tags.isNotEmpty) displayTag = tags.first;
+    } else if (reel.niche != null) {
+      displayTag = '#${reel.niche}';
+    }
+    
+    final hasImage = reel.thumbnailUrl != null && reel.thumbnailUrl!.isNotEmpty;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : Colors.transparent,
+            width: isSelected ? 2.5 : 0,
+          ),
+          color: const Color(0xFF0F111E),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              const Text('#️⃣ Hashtags', style: TextStyle(fontWeight: FontWeight.w700)),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: script.hashtags.map((h) => Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(20),
+              // Gradient always visible as base — visible while image loads or on error
+              _buildGradientFallback(reel.id),
+
+              // Network image on top of gradient (transparent until loaded)
+              if (hasImage)
+                Image.network(
+                  reel.thumbnailUrl!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                ),
+
+              // Dark overlay for text readability
+              Container(color: Colors.black.withValues(alpha: 0.35)),
+
+              // Play button
+              const Center(
+                child: Icon(Icons.play_circle_outline_rounded, color: Colors.white, size: 36),
+              ),
+
+              // Selected checkmark
+              if (isSelected)
+                Positioned(
+                  top: 8, left: 8,
+                  child: Container(
+                    width: 22, height: 22,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.check, color: Colors.white, size: 14),
                   ),
-                  child: Text(h, style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 12)),
-                )).toList(),
+                ),
+
+              // Bottom info
+              Positioned(
+                left: 0, right: 0, bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.transparent, Colors.black.withValues(alpha: 0.9)],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        displayTag,
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        viewsText,
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 10, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
         ),
-      ],
+      ),
+    );
+  }
+
+  Widget _buildGradientFallback(int id) {
+    // Pick deterministic gradient colors based on ID
+    final colors = [
+      [const Color(0xFF6C5CE7), const Color(0xFF00C6FF)],
+      [const Color(0xFFFF7675), const Color(0xFFD63031)],
+      [const Color(0xFF00B894), const Color(0xFF00CEC9)],
+      [const Color(0xFFE84393), const Color(0xFFFD79A8)],
+    ];
+    final colorPair = colors[id % colors.length];
+    
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: colorPair,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
     );
   }
 }
 
-class _Block extends StatelessWidget {
-  const _Block({required this.label, required this.content, required this.context, required this.onCopy});
-  final String label;
-  final String content;
-  final BuildContext context;
-  final void Function(BuildContext, String) onCopy;
+// ── Placeholder reel card when no trends loaded
+class _PlaceholderReelCard extends StatelessWidget {
+  const _PlaceholderReelCard({required this.index});
+  final int index;
+
+  static const _labels = ['#trending #viral', '#lifestyle', '#tech #viral', '#motivation'];
 
   @override
   Widget build(BuildContext context) {
-    return GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: const Color(0xFF1A1C2E),
+      ),
+      child: Stack(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
-              IconButton(
-                icon: const Icon(Icons.copy_rounded, size: 18),
-                onPressed: () => onCopy(context, content),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-            ],
+          const Center(
+            child: Icon(Icons.play_circle_outline_rounded, color: Colors.white54, size: 36),
           ),
-          const SizedBox(height: 8),
-          Text(content, style: TextStyle(color: AppColors.textMuted.withValues(alpha: 0.9), fontSize: 14, height: 1.6)),
+          Positioned(
+            left: 0, right: 0, bottom: 0,
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.transparent, Colors.black.withValues(alpha: 0.8)],
+                  begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_labels[index % _labels.length],
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 2),
+                  Text('0 views', style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 10)),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -152,3 +152,90 @@ class AIScriptModel {
     );
   }
 }
+
+/// FacebookReel model — mirrors backend FacebookReelSerializer response.
+class FacebookReelModel {
+  final int id;
+  final String? reelId;   // nullable — old scraped records may have null reel_id
+  final String? reelUrl;
+  final String? pageUrl;
+  final String? text;
+  final String? createdAt;
+  final int playCount;
+  final int durationMs;
+  final String? niche;
+  final String status;
+  final String? thumbnailUrl;
+
+  const FacebookReelModel({
+    required this.id,
+    this.reelId,
+    this.reelUrl,
+    this.pageUrl,
+    this.text,
+    this.createdAt,
+    required this.playCount,
+    required this.durationMs,
+    this.niche,
+    required this.status,
+    this.thumbnailUrl,
+  });
+
+  factory FacebookReelModel.fromJson(Map<String, dynamic> json) {
+    return FacebookReelModel(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      reelId: json['reel_id'] as String?,
+      reelUrl: json['reel_url'] as String?,
+      pageUrl: json['page_url'] as String?,
+      text: json['text'] as String?,
+      createdAt: json['created_at'] as String?,
+      playCount: (json['play_count'] as num?)?.toInt() ?? 0,
+      durationMs: (json['duration_ms'] as num?)?.toInt() ?? 0,
+      niche: json['niche'] as String?,
+      status: json['status'] as String? ?? 'scraped',
+      thumbnailUrl: json['thumbnail_url'] as String?,
+    );
+  }
+}
+
+/// GeneratedVideo model — mirrors backend GeneratedVideoSerializer response.
+class GeneratedVideoModel {
+  final int id;
+  final String? reelId;
+  final String? niche;
+  final String? userPrompt;
+  final String? script;
+  final String? scriptText;
+  final String? falRequestId;
+  final String? videoUrl;
+  final String status;
+  final String createdAt;
+
+  const GeneratedVideoModel({
+    required this.id,
+    this.reelId,
+    this.niche,
+    this.userPrompt,
+    this.script,
+    this.scriptText,
+    this.falRequestId,
+    this.videoUrl,
+    required this.status,
+    required this.createdAt,
+  });
+
+  factory GeneratedVideoModel.fromJson(Map<String, dynamic> json) {
+    return GeneratedVideoModel(
+      id: json['id'] as int,
+      reelId: json['reel'] as String?,
+      niche: json['niche'] as String?,
+      userPrompt: json['user_prompt'] as String?,
+      script: json['script'] as String?,
+      scriptText: json['script_text'] as String?,
+      falRequestId: json['fal_request_id'] as String?,
+      videoUrl: json['video_url'] as String?,
+      status: json['status'] as String? ?? 'pending',
+      createdAt: json['created_at'] as String? ?? '',
+    );
+  }
+}

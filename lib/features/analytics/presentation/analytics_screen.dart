@@ -1,4 +1,4 @@
-/// Analytics screen — stat cards, 7-day engagement line chart, platform bar chart, heatmap.
+/// Analytics screen — Facebook Live Stats, stat cards, engagement chart, platform bar chart, heatmap.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -7,8 +7,8 @@ import '../../../../core/network/dio_client.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
 
 // ── Providers
-final _analyticsSummaryProvider = FutureProvider<Map<String, dynamic>>((ref) async {
-  final res = await ref.read(dioProvider).get('/analytics/summary/');
+final _fbVideosProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  final res = await ref.read(dioProvider).get('/analytics/facebook-videos/');
   return res.data as Map<String, dynamic>;
 });
 
@@ -27,7 +27,7 @@ class AnalyticsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final summaryAsync = ref.watch(_analyticsSummaryProvider);
+    final fbAsync = ref.watch(_fbVideosProvider);
     final engagementAsync = ref.watch(_engagementProvider);
     final platformAsync = ref.watch(_platformProvider);
 
@@ -44,26 +44,164 @@ class AnalyticsScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // ── Stat Cards
-                      summaryAsync.when(
-                        data: (summary) => GridView.count(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                          childAspectRatio: 1.4,
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          children: [
-                            _StatCard(label: '👁 Total Views', value: summary['total_views']?['label'] ?? '--', trend: summary['total_views']?['trend']),
-                            _StatCard(label: '💥 Engagement', value: summary['engagement']?['label'] ?? '--', trend: summary['engagement']?['trend']),
-                            _StatCard(label: '👥 Followers', value: summary['followers']?['label'] ?? '--', trend: summary['followers']?['trend']),
-                            _StatCard(label: '🔥 Viral Score', value: summary['viral_score']?['label'] ?? '--', trend: summary['viral_score']?['trend']),
-                          ],
-                        ),
+
+                      // ── Facebook Live Stats section
+                      fbAsync.when(
+                        data: (fbData) {
+                          final videos = (fbData['videos'] as List? ?? [])
+                              .cast<Map<String, dynamic>>();
+                          final summary = fbData['summary'] as Map<String, dynamic>? ?? {};
+                          final totalViews = summary['total_views'] ?? 0;
+                          final engagement = summary['engagement'] ?? 0.0;
+                          final source = fbData['source'] as String? ?? 'unknown';
+                          final isRealData = source == 'facebook_api';
+                          final fbErrors = fbData['partial_errors'] as List? ?? fbData['fb_errors'] as List?;
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Section header
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 32, height: 32,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFF1877F2),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Center(
+                                      child: Text('f', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18)),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Expanded(
+                                    child: Text('Facebook Live Stats',
+                                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                                  ),
+                                  // Refresh button
+                                  IconButton(
+                                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                                    onPressed: () => ref.invalidate(_fbVideosProvider),
+                                    tooltip: 'Actualiser',
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  // Source badge
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: isRealData
+                                          ? AppColors.success.withValues(alpha: 0.15)
+                                          : AppColors.warning.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          width: 8, height: 8,
+                                          decoration: BoxDecoration(
+                                            color: isRealData ? AppColors.success : AppColors.warning,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                          isRealData ? 'LIVE' : 'LOCAL',
+                                          style: TextStyle(
+                                            color: isRealData ? AppColors.success : AppColors.warning,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+
+                              // ── Error banner when using local DB
+                              if (!isRealData) ..._buildErrorBanner(fbErrors, fbData['fb_hint'] as String?),
+
+                              const SizedBox(height: 10),
+
+                              // Video stat cards
+                              if (videos.isEmpty)
+                                GlassCard(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Center(
+                                      child: Column(
+                                        children: [
+                                          Icon(Icons.video_library_outlined,
+                                              color: AppColors.textMuted, size: 32),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            isRealData
+                                                ? 'Aucune vidéo trouvée sur votre page Facebook.'
+                                                : 'Aucune vidéo dans la base locale.',
+                                            style: TextStyle(color: AppColors.textMuted),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              else
+                                ...videos.map((v) => _VideoStatCard(video: v)),
+
+                              const SizedBox(height: 20),
+
+                              // Summary cards row
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _SummaryCard(
+                                      icon: Icons.remove_red_eye_outlined,
+                                      label: 'Total Views',
+                                      value: _formatNumber(totalViews is int ? totalViews : (totalViews as num).toInt()),
+                                      color: AppColors.primary,
+                                      isLive: isRealData,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _SummaryCard(
+                                      icon: Icons.local_fire_department_rounded,
+                                      label: 'Engagement',
+                                      value: '$engagement%',
+                                      color: AppColors.warning,
+                                      isLive: isRealData,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          );
+                        },
                         loading: () => const Center(child: CircularProgressIndicator()),
-                        error: (_, __) => const SizedBox.shrink(),
+                        error: (err, __) => GlassCard(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              children: [
+                                const Icon(Icons.wifi_off_rounded, color: AppColors.error, size: 28),
+                                const SizedBox(height: 8),
+                                Text('Impossible de contacter le backend.',
+                                    style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w600)),
+                                const SizedBox(height: 4),
+                                Text(err.toString(),
+                                    style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 24),
+
+                      const SizedBox(height: 28),
 
                       // ── Engagement Trend (line chart)
                       Text('Engagement Trend',
@@ -97,7 +235,7 @@ class AnalyticsScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 24),
 
-                      // ── Best Posting Times (simple heatmap)
+                      // ── Best Posting Times (heatmap)
                       Text('Best Posting Times',
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
                       const SizedBox(height: 14),
@@ -120,12 +258,219 @@ class AnalyticsScreen extends ConsumerWidget {
   }
 }
 
-// ── Stat card
-class _StatCard extends StatelessWidget {
-  const _StatCard({required this.label, required this.value, this.trend});
+// ── Utility: format large numbers (56 → "56", 1500 → "1.5K")
+String _formatNumber(int n) {
+  if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+  if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+  return n.toString();
+}
+
+// ── Facebook video stat card
+class _VideoStatCard extends StatelessWidget {
+  const _VideoStatCard({required this.video});
+  final Map<String, dynamic> video;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hashtags = video['hashtags'] as String? ?? '#viral';
+    final views = video['views'] ?? 0;
+    final likes = video['likes'] ?? 0;
+    final comments = video['comments'] ?? 0;
+    final shares = video['shares'] ?? 0;
+    final avgWatch = video['avg_watch'] ?? 0.0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          // Thumbnail (real image or gradient placeholder)
+          _VideoThumbnail(
+            url: video['thumbnail_url'] as String? ?? '',
+            isDark: isDark,
+            seed: (video['session'] as String? ?? video['id']?.toString() ?? '0').hashCode,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(hashtags,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 4,
+                  children: [
+                    _StatChip(Icons.play_arrow_rounded, '$views views', Colors.white70),
+                    _StatChip(Icons.favorite_rounded, '$likes likes', AppColors.error),
+                    _StatChip(Icons.chat_bubble_outline_rounded, '$comments comments', Colors.white60),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 12,
+                  children: [
+                    _StatChip(Icons.share_rounded, '$shares shares', Colors.white60),
+                    _StatChip(Icons.timer_outlined, '${avgWatch}s avg watch', AppColors.primary),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Video thumbnail: shows real thumb from Facebook or a gradient placeholder
+class _VideoThumbnail extends StatelessWidget {
+  const _VideoThumbnail({required this.url, required this.isDark, this.seed = 0});
+  final String url;
+  final bool isDark;
+  final int seed;
+
+  static const _gradients = [
+    [Color(0xFF6C5CE7), Color(0xFF00C6FF)],
+    [Color(0xFFFF7675), Color(0xFFD63031)],
+    [Color(0xFF00B894), Color(0xFF00CEC9)],
+    [Color(0xFFE84393), Color(0xFFFD79A8)],
+    [Color(0xFFF39C12), Color(0xFFE67E22)],
+  ];
+
+  Widget _buildGradient() {
+    final pair = _gradients[seed.abs() % _gradients.length];
+    return Container(
+      width: 72, height: 72,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        gradient: LinearGradient(
+          colors: pair,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: const Center(
+        child: Icon(Icons.play_arrow_rounded, color: Colors.white, size: 32),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (url.isEmpty) return _buildGradient();
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Stack(
+        children: [
+          _buildGradient(), // always visible as base
+          Image.network(
+            url,
+            width: 72, height: 72,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            loadingBuilder: (_, child, progress) {
+              if (progress == null) return child;
+              return const SizedBox.shrink(); // gradient shows through while loading
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  const _StatChip(this.icon, this.label, this.color);
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 3),
+        Text(label, style: TextStyle(fontSize: 11, color: color)),
+      ],
+    );
+  }
+}
+
+// ── Helper: error banner from FB API failure
+List<Widget> _buildErrorBanner(List? errors, String? hint) {
+  return [
+    Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFF6B35).withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFF6B35).withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Color(0xFFFF6B35), size: 16),
+              SizedBox(width: 6),
+              Text('Données locales — API Facebook indisponible',
+                  style: TextStyle(
+                    color: Color(0xFFFF6B35),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  )),
+            ],
+          ),
+          if (errors != null && errors.isNotEmpty) ...[  
+            const SizedBox(height: 6),
+            ...errors.map((e) => Text(
+              '• $e',
+              style: const TextStyle(color: Color(0xFFFF6B35), fontSize: 10),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            )),
+          ],
+          if (hint != null) ...[  
+            const SizedBox(height: 4),
+            Text(hint, style: const TextStyle(color: Color(0xFFFFAA80), fontSize: 10)),
+          ],
+        ],
+      ),
+    ),
+  ];
+}
+
+// (Insights warning removed as views are now fetched directly without read_insights)
+
+// ── Summary card (Total Views / Engagement)
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+    this.isLive = false,
+  });
+  final IconData icon;
   final String label;
   final String value;
-  final String? trend;
+  final Color color;
+  final bool isLive;
 
   @override
   Widget build(BuildContext context) {
@@ -134,25 +479,41 @@ class _StatCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
-          const Spacer(),
+          Row(
+            children: [
+              Icon(icon, color: color, size: 16),
+              const SizedBox(width: 6),
+              Text(label, style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+            ],
+          ),
+          const SizedBox(height: 8),
           GradientText(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 22)),
-          if (trend != null) ...[
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Icon(Icons.arrow_upward_rounded, color: AppColors.success, size: 12),
-                Text(trend!, style: TextStyle(color: AppColors.success, fontSize: 11, fontWeight: FontWeight.w600)),
-              ],
-            ),
-          ],
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(
+                isLive ? Icons.wifi_rounded : Icons.storage_rounded,
+                color: isLive ? AppColors.success : AppColors.warning,
+                size: 12,
+              ),
+              const SizedBox(width: 3),
+              Text(
+                isLive ? 'Facebook live' : 'Base locale',
+                style: TextStyle(
+                  color: isLive ? AppColors.success : AppColors.warning,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-// ── Engagement line chart
+// ── Engagement line chart (unchanged)
 class _EngagementLineChart extends StatelessWidget {
   const _EngagementLineChart({required this.data});
   final List<Map<String, dynamic>> data;
@@ -165,22 +526,26 @@ class _EngagementLineChart extends StatelessWidget {
 
     return LineChart(
       LineChartData(
-        gridData: FlGridData(show: false),
+        gridData: const FlGridData(show: false),
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              getTitlesWidget: (v, _) => Text(
-                data[v.toInt()]['day'] as String? ?? '',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 10),
-              ),
+              getTitlesWidget: (v, _) {
+                final idx = v.toInt();
+                if (idx < 0 || idx >= data.length) return const SizedBox.shrink();
+                return Text(
+                  data[idx]['day'] as String? ?? '',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 10),
+                );
+              },
               interval: 1,
             ),
           ),
-          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
         lineBarsData: [
           LineChartBarData(
@@ -188,7 +553,7 @@ class _EngagementLineChart extends StatelessWidget {
             isCurved: true,
             gradient: AppColors.gradientPrimaryHorizontal,
             barWidth: 3,
-            dotData: FlDotData(show: false),
+            dotData: const FlDotData(show: false),
             belowBarData: BarAreaData(
               show: true,
               gradient: LinearGradient(
@@ -204,7 +569,7 @@ class _EngagementLineChart extends StatelessWidget {
   }
 }
 
-// ── Platform bar chart
+// ── Platform bar chart (unchanged)
 class _PlatformBarChart extends StatelessWidget {
   const _PlatformBarChart({required this.data});
   final List<Map<String, dynamic>> data;
@@ -218,27 +583,30 @@ class _PlatformBarChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxVal = data.map((d) => (d['value'] as num).toDouble()).reduce((a, b) => a > b ? a : b);
+    final vals = data.map((d) => (d['value'] as num).toDouble()).toList();
+    final maxVal = vals.isEmpty ? 1.0 : vals.reduce((a, b) => a > b ? a : b);
 
     return BarChart(
       BarChartData(
         alignment: BarChartAlignment.spaceAround,
         maxY: maxVal * 1.2,
-        gridData: FlGridData(show: false),
+        gridData: const FlGridData(show: false),
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
               getTitlesWidget: (v, _) {
-                final name = data[v.toInt()]['name'] as String? ?? '';
+                final idx = v.toInt();
+                if (idx < 0 || idx >= data.length) return const SizedBox.shrink();
+                final name = data[idx]['name'] as String? ?? '';
                 return Text(name, style: TextStyle(color: AppColors.textMuted, fontSize: 10));
               },
             ),
           ),
-          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
         barGroups: data.asMap().entries.map((e) {
           final color = _platformColors[e.value['name']] ?? AppColors.primary;
@@ -263,11 +631,10 @@ class _PlatformBarChart extends StatelessWidget {
   }
 }
 
-// ── Posting heatmap
+// ── Posting heatmap (unchanged)
 class _PostingHeatmap extends StatelessWidget {
   final _hours = ['6AM', '12PM', '6PM', '12AM'];
   final _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  // Score matrix [hours][days] scaled 0-10
   final _scores = [
     [2, 3, 4, 5, 8, 9, 7],
     [5, 6, 7, 8, 9, 8, 6],
@@ -322,8 +689,7 @@ class _PostingHeatmap extends StatelessWidget {
             Text('Low', style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
             const SizedBox(width: 6),
             ...List.generate(5, (i) => Container(
-              width: 14,
-              height: 14,
+              width: 14, height: 14,
               margin: const EdgeInsets.symmetric(horizontal: 1),
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: (i + 1) * 0.2),

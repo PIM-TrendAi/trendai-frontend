@@ -15,19 +15,42 @@ class SecureStorageService {
   SecureStorageService()
       : _storage = const FlutterSecureStorage(
           aOptions: AndroidOptions(encryptedSharedPreferences: true),
+          iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
         );
 
   final FlutterSecureStorage _storage;
 
-  Future<void> writeAccessToken(String token) =>
-      _storage.write(key: _keyAccess, value: token);
+  Future<void> writeAccessToken(String token) async {
+    try {
+      await _storage.write(key: _keyAccess, value: token);
+    } catch (e) {
+      // Ignored for simulator
+    }
+  }
 
-  Future<void> writeRefreshToken(String token) =>
-      _storage.write(key: _keyRefresh, value: token);
+  Future<void> writeRefreshToken(String token) async {
+    try {
+      await _storage.write(key: _keyRefresh, value: token);
+    } catch (e) {
+      // Ignored for simulator
+    }
+  }
 
-  Future<String?> readAccessToken() => _storage.read(key: _keyAccess);
+  Future<String?> readAccessToken() async {
+    try {
+      return await _storage.read(key: _keyAccess);
+    } catch (e) {
+      return null;
+    }
+  }
 
-  Future<String?> readRefreshToken() => _storage.read(key: _keyRefresh);
+  Future<String?> readRefreshToken() async {
+    try {
+      return await _storage.read(key: _keyRefresh);
+    } catch (e) {
+      return null;
+    }
+  }
 
   Future<bool> hasTokens() async {
     final access = await readAccessToken();

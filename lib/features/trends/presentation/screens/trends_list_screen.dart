@@ -8,12 +8,23 @@ import '../../../../shared/widgets/shared_widgets.dart';
 import '../../../auth/data/models.dart';
 import 'package:dio/dio.dart';
 
-final _allTrendsProvider = FutureProvider.family<List<TrendModel>, Map<String, String>>(
+final _allTrendsProvider = FutureProvider.family<List<TrendModel>, ({String sort, String platform})>(
   (ref, params) async {
     final dio = ref.read(dioProvider);
-    final res = await dio.get('/trends/', queryParameters: params);
-    final list = res.data['results'] as List? ?? res.data as List;
-    return list.map((e) => TrendModel.fromJson(e as Map<String, dynamic>)).toList();
+    final queryParams = <String, String>{'sort': params.sort};
+    if (params.platform != 'All') queryParams['platform'] = params.platform;
+    final res = await dio.get('/trends/', queryParameters: queryParams);
+    final data = res.data;
+    final List<dynamic> rawList = (data is Map) ? (data['results'] as List? ?? []) : (data as List? ?? []);
+    final List<TrendModel> result = [];
+    for (final e in rawList) {
+      try {
+        result.add(TrendModel.fromJson(e as Map<String, dynamic>));
+      } catch (err) {
+        debugPrint('Error parsing TrendModel: $err');
+      }
+    }
+    return result;
   },
 );
 
@@ -36,8 +47,7 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final params = <String, String>{'sort': _sort};
-    if (_platform != 'All') params['platform'] = _platform;
+    final params = (sort: _sort, platform: _platform);
     final trendsAsync = ref.watch(_allTrendsProvider(params));
 
     return Scaffold(
@@ -151,7 +161,7 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
                           ),
                           const SizedBox(height: 16),
                           ElevatedButton(
-                            onPressed: () => ref.invalidate(_allTrendsProvider(params)),
+                            onPressed: () => ref.invalidate(_allTrendsProvider((sort: _sort, platform: _platform))),
                             child: const Text('Retry'),
                           ),
                         ],
@@ -168,6 +178,31 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
           ),
         ],
       ),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 70), // Lift above bottom nav
+        child: FloatingActionButton.extended(
+          onPressed: () async {
+            final dio = ref.read(dioProvider);
+            try {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Radar active: Scanning for new trends...'), duration: Duration(seconds: 3)),
+              );
+              await dio.post('/trends/scrape/');
+            } catch (e) {
+              String msg = e.toString();
+              if (e is DioException) {
+                msg = e.response?.data?['error']?.toString() ?? msg;
+              }
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Scan failed: $msg'), backgroundColor: AppColors.error),
+              );
+            }
+          },
+          backgroundColor: AppColors.primary,
+          icon: const Icon(Icons.radar_rounded, color: Colors.white),
+          label: const Text('Scan', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+        ),
+      ),
     );
   }
 }
@@ -179,7 +214,7 @@ class _TrendCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => context.go('/trend/${trend.id}'),
+      onTap: () => context.push('/trend/${trend.id}'),
       child: GlassCard(
         padding: const EdgeInsets.all(18),
         child: Column(

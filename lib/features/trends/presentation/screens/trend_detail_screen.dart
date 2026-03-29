@@ -173,7 +173,7 @@ class _SparklineChart extends StatelessWidget {
             sideTitles: SideTitles(
               showTitles: true,
               getTitlesWidget: (val, _) => Text(
-                chartData[val.toInt()]['day'] as String? ?? '',
+                chartData[val.toInt()]['day']?.toString() ?? '',
                 style: TextStyle(color: AppColors.textMuted, fontSize: 10),
               ),
               interval: 1,

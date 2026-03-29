@@ -151,40 +151,47 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
                       const SizedBox(height: 12),
                       platformsAsync.when(
-                        data: (platforms) => Column(
-                          children: [
-                            _PlatformCard(
-                              name: 'TikTok',
-                              isConnected: true,
-                              iconColor: AppColors.tikTok,
-                              iconData: Icons.link_rounded,
-                              onAction: () {},
-                            ),
-                            _PlatformCard(
-                              name: 'Instagram',
-                              isConnected: true,
-                              iconColor: AppColors.instagram,
-                              iconData: Icons.link_rounded,
-                              onAction: () {},
-                            ),
-                            _PlatformCard(
-                              name: 'YouTube',
-                              isConnected: false,
-                              iconColor: AppColors.youtube,
-                              iconData: Icons.link_rounded,
-                              isPrimaryAction: true,
-                              onAction: () {},
-                            ),
-                            _PlatformCard(
-                              name: 'Facebook',
-                              isConnected: false,
-                              iconColor: AppColors.facebook,
-                              iconData: Icons.link_rounded,
-                              isPrimaryAction: true,
-                              onAction: () {},
-                            ),
-                          ],
-                        ),
+                        data: (platforms) {
+                          final fbPlatform = platforms.firstWhere(
+                            (p) => p['platform_name'] == 'Facebook',
+                            orElse: () => <String, dynamic>{'id': 0, 'platform_name': 'Facebook', 'connected': false},
+                          );
+                          final isFbConnected = fbPlatform['connected'] as bool? ?? false;
+                          return Column(
+                            children: [
+                              _PlatformCard(
+                                name: 'TikTok',
+                                isConnected: (platforms.firstWhere((p) => p['platform_name'] == 'TikTok', orElse: () => {'connected': false})['connected'] as bool? ?? false),
+                                iconColor: AppColors.tikTok,
+                                iconData: Icons.link_rounded,
+                                onAction: () => _togglePlatform(platforms.firstWhere((p) => p['platform_name'] == 'TikTok', orElse: () => {'id': 0})),
+                              ),
+                              _PlatformCard(
+                                name: 'Instagram',
+                                isConnected: (platforms.firstWhere((p) => p['platform_name'] == 'Instagram', orElse: () => {'connected': false})['connected'] as bool? ?? false),
+                                iconColor: AppColors.instagram,
+                                iconData: Icons.link_rounded,
+                                onAction: () => _togglePlatform(platforms.firstWhere((p) => p['platform_name'] == 'Instagram', orElse: () => {'id': 0})),
+                              ),
+                              _PlatformCard(
+                                name: 'YouTube',
+                                isConnected: (platforms.firstWhere((p) => p['platform_name'] == 'YouTube', orElse: () => {'connected': false})['connected'] as bool? ?? false),
+                                iconColor: AppColors.youtube,
+                                iconData: Icons.link_rounded,
+                                isPrimaryAction: !(platforms.firstWhere((p) => p['platform_name'] == 'YouTube', orElse: () => {'connected': false})['connected'] as bool? ?? false),
+                                onAction: () => _togglePlatform(platforms.firstWhere((p) => p['platform_name'] == 'YouTube', orElse: () => {'id': 0})),
+                              ),
+                              _PlatformCard(
+                                name: 'Facebook',
+                                isConnected: isFbConnected,
+                                iconColor: AppColors.facebook,
+                                iconData: Icons.link_rounded,
+                                isPrimaryAction: !isFbConnected,
+                                onAction: () => _togglePlatform(fbPlatform),
+                              ),
+                            ],
+                          );
+                        },
                         loading: () => const Center(child: CircularProgressIndicator()),
                         error: (_, __) => Text('Could not load platforms', style: TextStyle(color: AppColors.textMuted)),
                       ),
@@ -248,6 +255,60 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ),
                       const SizedBox(height: 32),
 
+
+                      // ── My Videos button
+                      GestureDetector(
+                        onTap: () => context.push('/my-videos'),
+                        child: Container(
+                          width: double.infinity,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            gradient: AppColors.gradientPrimary,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(color: AppColors.primary.withValues(alpha: 0.3), blurRadius: 16, offset: const Offset(0, 4)),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(Icons.video_library_rounded, color: Colors.white),
+                              SizedBox(width: 10),
+                              Text('My Videos', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // ── Change Niche button
+                      GestureDetector(
+                        onTap: () {},
+                        child: Container(
+                          width: double.infinity,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.grey.shade300,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.auto_awesome_rounded,
+                                color: isDark ? Colors.white54 : AppColors.textMuted),
+                              const SizedBox(width: 10),
+                              Text('Change Niche',
+                                style: TextStyle(
+                                  color: isDark ? Colors.white70 : AppColors.textLight,
+                                  fontWeight: FontWeight.w600, fontSize: 15)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
 
                       // ── Logout
                       GestureDetector(

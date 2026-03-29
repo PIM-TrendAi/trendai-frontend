@@ -15,6 +15,23 @@ final _dashboardTrendsProvider = FutureProvider<List<TrendModel>>((ref) async {
   return list.map((e) => TrendModel.fromJson(e as Map<String, dynamic>)).toList();
 });
 
+final _dashboardReelsProvider = FutureProvider<List<FacebookReelModel>>((ref) async {
+  final dio = ref.read(dioProvider);
+  final res = await dio.get('/trends/reels/');
+  final data = res.data;
+  // Handle both paginated {count, results:[...]} and plain list responses
+  final List<dynamic> rawList = (data is Map) ? (data['results'] as List? ?? []) : (data as List? ?? []);
+  final List<FacebookReelModel> result = [];
+  for (final e in rawList) {
+    try {
+      result.add(FacebookReelModel.fromJson(e as Map<String, dynamic>));
+    } catch (_) {
+      // Skip malformed records without crashing the whole list
+    }
+  }
+  return result;
+});
+
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
@@ -66,6 +83,52 @@ class DashboardScreen extends ConsumerWidget {
                       loading: () => const Center(child: CircularProgressIndicator()),
                       error: (e, _) => GlassCard(
                         child: Text('Could not load trends. Check API connection.', style: TextStyle(color: AppColors.textMuted)),
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+
+                    // ── Scraped Reels
+                    Row(
+                      children: [
+                        Icon(Icons.video_library_rounded, color: AppColors.primary),
+                        const SizedBox(width: 8),
+                        Text('Top Scraped Reels 🤖',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    ref.watch(_dashboardReelsProvider).when(
+                      data: (reels) {
+                        final uiList = reels.where((r) => r.thumbnailUrl != null && r.thumbnailUrl!.isNotEmpty).toList();
+                        
+                        if (uiList.isEmpty) {
+                          return GlassCard(
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                              child: Center(
+                                child: Text('No scraped reels with images match your niches yet. Try exploring other niches or triggering a new scrape!',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+
+                        return SizedBox(
+                          height: 180,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            padding: EdgeInsets.zero,
+                            itemCount: uiList.length,
+                            separatorBuilder: (_, __) => const SizedBox(width: 14),
+                            itemBuilder: (ctx, i) => _ScrapedReelCard(reel: uiList[i]),
+                          ),
+                        );
+                      },
+                      loading: () => const Center(child: CircularProgressIndicator()),
+                      error: (e, _) => GlassCard(
+                        child: Text('Could not load scraped reels.', style: TextStyle(color: AppColors.textMuted)),
                       ),
                     ),
                     const SizedBox(height: 28),
@@ -327,6 +390,141 @@ class _RecommendationCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Scraped Reel Card
+class _ScrapedReelCard extends StatelessWidget {
+  const _ScrapedReelCard({required this.reel});
+  final FacebookReelModel reel;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasImage = reel.thumbnailUrl != null && reel.thumbnailUrl!.isNotEmpty;
+    
+    return GestureDetector(
+      onTap: () => context.go('/ai-generator'), // Allows user to jump to the generator
+      child: Container(
+        width: 220,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            children: [
+              // Background Image or Gradient Fallback
+              if (hasImage)
+                Positioned.fill(
+                  child: Image.network(
+                    reel.thumbnailUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _buildDashboardGradientFallback(reel.id),
+                  ),
+                )
+              else
+                Positioned.fill(
+                  child: _buildDashboardGradientFallback(reel.id),
+                ),
+
+              // Gradient Overlay
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.black.withValues(alpha: 0.8),
+                        Colors.black.withValues(alpha: 0.3),
+                        Colors.black.withValues(alpha: 0.8),
+                      ],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                  ),
+                ),
+              ),
+
+              // Content
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.facebook.withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.facebook.withValues(alpha: 0.5)),
+                          ),
+                          child: Text(reel.niche ?? 'General', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                        ),
+                        Row(
+                          children: [
+                            const Icon(Icons.play_arrow_rounded, color: Colors.white70, size: 14),
+                            Text('${reel.playCount}',
+                                style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600, fontSize: 12)),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(reel.text ?? 'No description available for this reel.',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13, height: 1.4),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis),
+                    const Spacer(),
+                    SizedBox(
+                      width: double.infinity,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            )
+                          ],
+                        ),
+                        child: const Text('Generate AI Video', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDashboardGradientFallback(int id) {
+    final colors = [
+      [const Color(0xFF6C5CE7), const Color(0xFF00C6FF)],
+      [const Color(0xFFFF7675), const Color(0xFFD63031)],
+      [const Color(0xFF00B894), const Color(0xFF00CEC9)],
+      [const Color(0xFFE84393), const Color(0xFFFD79A8)],
+    ];
+    final colorPair = colors[id % colors.length];
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: colorPair,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
       ),
     );
   }
