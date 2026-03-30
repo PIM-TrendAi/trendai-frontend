@@ -168,3 +168,87 @@ class AIScriptModel {
     );
   }
 }
+
+/// FacebookReel model — mirrors backend FacebookReelSerializer response.
+class FacebookReelModel {
+  final int id;
+  final String reelId;
+  final String? reelUrl;
+  final String? pageUrl;
+  final String? text;
+  final String? createdAt;
+  final int playCount;
+  final int durationMs;
+  final String? niche;
+  final String status;
+  final String? thumbnailUrl;
+
+  const FacebookReelModel({
+    required this.id,
+    required this.reelId,
+    this.reelUrl,
+    this.pageUrl,
+    this.text,
+    this.createdAt,
+    this.playCount = 0,
+    this.durationMs = 0,
+    this.niche,
+    this.status = 'scraped',
+    this.thumbnailUrl,
+  });
+
+  factory FacebookReelModel.fromJson(Map<String, dynamic> json) {
+    return FacebookReelModel(
+      id: json['id'] as int,
+      reelId: json['reel_id'] as String,
+      reelUrl: json['reel_url'] as String?,
+      pageUrl: json['page_url'] as String?,
+      text: json['text'] as String?,
+      createdAt: json['created_at'] as String?,
+      playCount: json['play_count'] as int? ?? 0,
+      durationMs: json['duration_ms'] as int? ?? 0,
+      niche: json['niche'] as String?,
+      status: json['status'] as String? ?? 'scraped',
+      thumbnailUrl: json['thumbnail_url'] as String?,
+    );
+  }
+}
+
+/// YouTubeVideo model — mirrors backend YouTubeVideoSerializer response.
+class YouTubeVideoModel {
+  final int id;
+  final String videoId;
+  final String? titre;
+  final String? description;
+  final String? tags;
+  final int vues;
+  final String? niche;
+  final String region;
+  final String? scrapedAt;
+
+  const YouTubeVideoModel({
+    required this.id,
+    required this.videoId,
+    this.titre,
+    this.description,
+    this.tags,
+    this.vues = 0,
+    this.niche,
+    this.region = 'TN',
+    this.scrapedAt,
+  });
+
+  factory YouTubeVideoModel.fromJson(Map<String, dynamic> json) {
+    return YouTubeVideoModel(
+      id: json['id'] as int,
+      videoId: json['video_id'] as String,
+      titre: json['titre'] as String?,
+      description: json['description'] as String?,
+      tags: json['tags'] as String?,
+      vues: json['vues'] as int? ?? 0,
+      niche: json['niche'] as String?,
+      region: json['region'] as String? ?? 'TN',
+      scrapedAt: json['scraped_at'] as String?,
+    );
+  }
+}

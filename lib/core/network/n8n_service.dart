@@ -8,14 +8,13 @@ export '../../features/video_workflow/data/models/workflow_models.dart' show Cre
 const _n8nBase = 'https://noncartelized-delightsomely-donetta.ngrok-free.dev';
 
 // n8n webhook paths
-const _pathStartWorkflow = '/webhook/205b7271-5246-4e81-80b4-7b93579ab006';
-const _pathScriptDecision = '/webhook/0ec65146-238d-4c79-a441-25721e9373e7';
-const _pathVideoDecision = '/webhook/35bda5a4-5875-4ce6-b33f-3bea2ca0dc8a';
-const _pathOAuthStart = '/webhook/c0a80001-0000-0000-0000-000000000001';
-// These two are added in Phase 3 (new n8n webhooks):
-const _pathGetTrends = '/webhook/d1b90001-0000-0000-0000-000000000001';
-const _pathVideoStatus = '/webhook/d1b90001-0000-0000-0000-000000000002';
-const _pathMyVideos = '/webhook/e1c90001-0000-0000-0000-000000000001';
+const _pathStartWorkflow = '/webhook/tiktok-creator-select';
+const _pathScriptDecision = '/webhook/tiktok-script-approve';
+const _pathVideoDecision = '/webhook/tiktok-video-approve';
+const _pathOAuthStart = '/webhook/tiktok-oauth-start';
+const _pathGetTrends = '/webhook/tiktok-get-trending';
+const _pathVideoStatus = '/webhook/tiktok-video-status';
+const _pathMyVideos = '/webhook/tiktok-my-videos';
 
 final n8nServiceProvider = Provider<N8nService>((_) => N8nService());
 

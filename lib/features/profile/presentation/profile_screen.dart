@@ -21,7 +21,23 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _notifications = true;
   bool _tiktokLoading = false;
+  bool _instagramLoading = false;
+  bool _instagramConnected = false;
   final _scrollCtrl = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _checkInstagramStatus();
+  }
+
+  Future<void> _checkInstagramStatus() async {
+    try {
+      final dio = ref.read(dioProvider);
+      final res = await dio.get('/platforms/instagram/status/');
+      if (mounted) setState(() => _instagramConnected = res.data['connected'] == true);
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
@@ -204,11 +220,50 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               }
                             },
                           ),
+                          const SizedBox(height: 8),
+                          _PlatformCard(
+                            name: 'Instagram',
+                            isConnected: _instagramConnected,
+                            iconColor: const Color(0xFFE1306C),
+                            iconData: Icons.camera_alt_rounded,
+                            isPrimaryAction: !_instagramConnected,
+                            isLoading: _instagramLoading,
+                            onAction: () async {
+                              if (_instagramLoading) return;
+                              setState(() => _instagramLoading = true);
+                              try {
+                                final dio = ref.read(dioProvider);
+                                if (_instagramConnected) {
+                                  await dio.post('/platforms/instagram/disconnect/');
+                                  setState(() => _instagramConnected = false);
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Instagram disconnected.')),
+                                    );
+                                  }
+                                } else {
+                                  await dio.post('/platforms/instagram/connect/');
+                                  setState(() => _instagramConnected = true);
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Instagram connected! 🎉')),
+                                    );
+                                  }
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Error: $e')),
+                                  );
+                                }
+                              } finally {
+                                if (mounted) setState(() => _instagramLoading = false);
+                              }
+                            },
+                          ),
                         ],
                       ),
                       const SizedBox(height: 24),
-
-                      // ── Settings
                       Text('Settings',
                           style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
                       const SizedBox(height: 12),

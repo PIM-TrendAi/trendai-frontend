@@ -73,6 +73,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     _InstagramScraperCard(),
                     const SizedBox(height: 28),
 
+                    // ── Facebook Section
+                    _FacebookScraperCard(),
+                    const SizedBox(height: 28),
+
+                    // ── YouTube Section
+                    _YouTubeScraperCard(),
+                    const SizedBox(height: 28),
+
                     // ── Trending Now
                     Row(
                       children: [
@@ -474,7 +482,7 @@ class _InstagramScraperCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          Text(
+          const Text(
             'Scrape trending niches, choose your favorite, and generate a viral reel in seconds.',
             style: TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.5),
           ),
@@ -489,3 +497,88 @@ class _InstagramScraperCard extends StatelessWidget {
   }
 }
 
+// ── Facebook Scraper Card
+class _FacebookScraperCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1877F2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.facebook, color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text('Facebook Engine 🔥',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Scrape trending Facebook reels, pick your favorite, and generate viral content instantly.',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.5),
+          ),
+          const SizedBox(height: 18),
+          GradientButton(
+            label: 'Explore Facebook Reels 🚀',
+            onPressed: () => context.go('/facebook-engine'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── YouTube Scraper Card
+class _YouTubeScraperCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF0000),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text('YouTube Engine 🔥',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Scrape trending YouTube videos, pick your favorite, and generate viral shorts instantly.',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.5),
+          ),
+          const SizedBox(height: 18),
+          GradientButton(
+            label: 'Explore YouTube Trends 🚀',
+            onPressed: () => context.go('/youtube-engine'),
+          ),
+        ],
+      ),
+    );
+  }
+}

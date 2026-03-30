@@ -19,6 +19,8 @@ import '../../features/video_workflow/presentation/screens/video_review_screen.d
 import '../../features/my_videos/presentation/my_videos_screen.dart';
 import '../../features/tiktok_stats/presentation/tiktok_stats_screen.dart';
 import '../../features/instagram/presentation/screens/instagram_trends_screen.dart';
+import '../../features/facebook/presentation/screens/facebook_engine_screen.dart';
+import '../../features/youtube/presentation/screens/youtube_engine_screen.dart';
 import '../../features/ai_generator/presentation/ai_generator_screen.dart';
 import '../storage/secure_storage.dart';
 
@@ -66,6 +68,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => AIGeneratorScreen(
           niche: state.uri.queryParameters['niche'],
           selectedVideoId: state.uri.queryParameters['selectedVideoId'],
+          platform: state.uri.queryParameters['platform'],
         ),
       ),
       GoRoute(path: '/analytics', builder: (_, __) => const AnalyticsScreen()),
@@ -77,6 +80,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/my-videos', builder: (_, __) => const MyVideosScreen()),
       GoRoute(path: '/tiktok-stats', builder: (_, __) => const TikTokStatsScreen()),
       GoRoute(path: '/instagram-engine', builder: (_, __) => const InstagramTrendsScreen()),
+      GoRoute(path: '/facebook-engine', builder: (_, __) => const FacebookEngineScreen()),
+      GoRoute(path: '/youtube-engine', builder: (_, __) => const YouTubeEngineScreen()),
     ],
   );
 });
