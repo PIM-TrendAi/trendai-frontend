@@ -12,6 +12,7 @@ const _pathStartWorkflow = '/webhook/tiktok-creator-select';
 const _pathScriptDecision = '/webhook/tiktok-script-approve';
 const _pathVideoDecision = '/webhook/tiktok-video-approve';
 const _pathOAuthStart = '/webhook/tiktok-oauth-start';
+const _pathOAuthStartFallback = '/webhook/c0a80001-0000-0000-0000-000000000001';
 const _pathGetTrends = '/webhook/tiktok-get-trending';
 const _pathVideoStatus = '/webhook/tiktok-video-status';
 const _pathMyVideos = '/webhook/tiktok-my-videos';
@@ -134,12 +135,27 @@ class N8nService {
   }
 
   Future<String> startTikTokOAuth({required String creatorId}) async {
-    final response = await _dio.get(
-      _pathOAuthStart,
-      queryParameters: {'creatorId': creatorId},
-      options: Options(receiveTimeout: const Duration(seconds: 10)),
-    );
-    final data = response.data as Map<String, dynamic>;
-    return data['authUrl'] as String;
+    Future<String> requestAuthUrl(String path) async {
+      final response = await _dio.get(
+        path,
+        queryParameters: {'creatorId': creatorId},
+        options: Options(receiveTimeout: const Duration(seconds: 10)),
+      );
+      final data = response.data as Map<String, dynamic>;
+      final authUrl = (data['authUrl'] ?? data['url'] ?? '').toString();
+      if (authUrl.isEmpty) {
+        throw Exception('TikTok auth URL missing in response');
+      }
+      return authUrl;
+    }
+
+    try {
+      return await requestAuthUrl(_pathOAuthStart);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return requestAuthUrl(_pathOAuthStartFallback);
+      }
+      rethrow;
+    }
   }
 }

@@ -18,29 +18,69 @@ class ProfileScreen extends ConsumerStatefulWidget {
   ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+class _ProfileScreenState extends ConsumerState<ProfileScreen>
+    with WidgetsBindingObserver {
   bool _notifications = true;
   bool _tiktokLoading = false;
   bool _instagramLoading = false;
+  bool _tiktokConnected = false;
   bool _instagramConnected = false;
   final _scrollCtrl = ScrollController();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _checkTikTokStatus();
     _checkInstagramStatus();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // After OAuth in browser, refresh platform statuses when app resumes.
+    if (state == AppLifecycleState.resumed) {
+      _checkTikTokStatus();
+      _checkInstagramStatus();
+    }
+  }
+
+  Future<void> _checkTikTokStatus() async {
+    try {
+      final dio = ref.read(dioProvider);
+      final res = await dio.get('/platforms/tiktok/status/');
+      if (mounted) setState(() => _tiktokConnected = res.data['connected'] == true);
+    } catch (e) {
+      try {
+        final dio = ref.read(dioProvider);
+        final res = await dio.get('/platforms/');
+        final data = res.data;
+        var connected = false;
+        if (data is List) {
+          for (final item in data) {
+            if (item is Map && item['platform_name']?.toString() == 'TikTok') {
+              connected = item['connected'] == true;
+              break;
+            }
+          }
+        }
+        if (mounted) setState(() => _tiktokConnected = connected);
+      } catch (_) {
+        if (mounted) setState(() => _tiktokConnected = false);
+      }
+    }
   }
 
   Future<void> _checkInstagramStatus() async {
     try {
       final dio = ref.read(dioProvider);
-      final res = await dio.get('/platforms/instagram/status/');
+      final res = await dio.get('/n8n/platforms/instagram/status/');
       if (mounted) setState(() => _instagramConnected = res.data['connected'] == true);
     } catch (_) {}
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _scrollCtrl.dispose();
     super.dispose();
   }
@@ -49,7 +89,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget build(BuildContext context) {
     final auth = ref.watch(authNotifierProvider);
     final user = auth.valueOrNull;
-    final tiktokConnected = user?.tiktokConnected ?? false;
+    final tiktokConnected = _tiktokConnected;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final themeMode = ref.watch(themeModeProvider);
@@ -185,6 +225,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   await ref.read(dioProvider).post('/platforms/tiktok/disconnect/');
                                   await ref.read(secureStorageProvider).setTikTokConnected(false);
                                   ref.read(authNotifierProvider.notifier).setTikTokConnected(connected: false);
+                                  if (mounted) {
+                                    setState(() => _tiktokConnected = false);
+                                  }
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(content: Text('TikTok disconnected.')),
@@ -207,6 +250,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                         ),
                                       );
                                     }
+                                  } else {
+                                    throw Exception('Could not open TikTok authorization URL');
                                   }
                                 }
                               } catch (e) {
@@ -234,7 +279,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               try {
                                 final dio = ref.read(dioProvider);
                                 if (_instagramConnected) {
-                                  await dio.post('/platforms/instagram/disconnect/');
+                                  await dio.post('/n8n/platforms/instagram/disconnect/');
                                   setState(() => _instagramConnected = false);
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -242,7 +287,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                     );
                                   }
                                 } else {
-                                  await dio.post('/platforms/instagram/connect/');
+                                  await dio.post('/n8n/platforms/instagram/connect/');
                                   setState(() => _instagramConnected = true);
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(

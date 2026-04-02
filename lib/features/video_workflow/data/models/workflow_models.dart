@@ -101,8 +101,8 @@ class WorkflowStartResponse {
 
   factory WorkflowStartResponse.fromJson(Map<String, dynamic> json) {
     return WorkflowStartResponse(
-      sessionId: json['sessionId'] as String? ?? '',
-      scriptContent: json['scriptContent'] as String? ?? '',
+      sessionId: json['sessionId'] as String? ?? json['session_id'] as String? ?? '',
+      scriptContent: json['scriptContent'] as String? ?? json['script_content'] as String? ?? '',
       status: json['status'] as String? ?? '',
     );
   }

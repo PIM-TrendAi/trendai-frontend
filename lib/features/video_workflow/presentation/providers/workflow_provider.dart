@@ -45,8 +45,7 @@ class WorkflowState {
   }
 }
 
-final workflowProvider =
-    StateNotifierProvider<WorkflowNotifier, WorkflowState>(
+final workflowProvider = StateNotifierProvider<WorkflowNotifier, WorkflowState>(
   (ref) => WorkflowNotifier(ref.read(n8nRepositoryProvider)),
 );
 
@@ -169,6 +168,17 @@ class WorkflowNotifier extends StateNotifier<WorkflowState> {
         errorMessage: e.toString(),
       );
     }
+  }
+
+  void setScriptContent(String content) {
+    state = state.copyWith(
+      scriptContent: content,
+      status: WorkflowStatus.pendingScriptReview,
+    );
+  }
+
+  void setSessionId(String sessionId) {
+    state = state.copyWith(sessionId: sessionId);
   }
 
   void reset() => state = const WorkflowState();
