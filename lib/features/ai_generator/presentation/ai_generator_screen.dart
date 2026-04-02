@@ -40,6 +40,13 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
     // Clear any stale session state from a previous platform
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(_videoGenerationStatusProvider.notifier).state = null;
+      // Auto-start workflow for non-TikTok when arriving with a selected video
+      final platform = (widget.platform ?? 'tiktok').toLowerCase();
+      if (widget.selectedVideoId != null &&
+          widget.selectedVideoId!.isNotEmpty &&
+          platform != 'tiktok') {
+        _startGeneration();
+      }
     });
     // Load the latest session on page open so the script shows immediately
     _loadLatestSession();

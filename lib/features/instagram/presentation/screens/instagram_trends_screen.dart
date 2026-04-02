@@ -25,7 +25,7 @@ class _InstagramTrendsScreenState extends ConsumerState<InstagramTrendsScreen> {
   bool _isScraping = false;
   Timer? _pollTimer;
   int _pollCount = 0;
-  static const int _maxPollAttempts = 20; 
+  static const int _maxPollAttempts = 20;
 
   @override
   void dispose() {
@@ -34,36 +34,33 @@ class _InstagramTrendsScreenState extends ConsumerState<InstagramTrendsScreen> {
   }
 
   Future<void> _triggerScrape(String niche) async {
-    setState(() { 
+    setState(() {
       _selectedNiche = niche;
-      _isScraping = true; 
-      _pollCount = 0; 
+      _isScraping = true;
+      _pollCount = 0;
     });
     try {
       final dio = ref.read(dioProvider);
       await dio.post('/n8n/trigger-scrape/', data: {"niche": niche, "platform": "instagram"});
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Analyse de la niche "$niche" lancée... 🚀')),
+          SnackBar(content: Text('Scraping "$niche" started... 🚀')),
         );
       }
-      
-      // Clear current trends to show loading UI
-      await ref.refresh(_trendingVideosProvider.future);
 
-      // Start polling DB every 4 seconds to wait for N8N to finish scraping
+      await ref.refresh(_trendingVideosProvider.future).catchError((_) => <Map<String, dynamic>>[]);
+
       _pollTimer?.cancel();
       _pollTimer = Timer.periodic(const Duration(seconds: 4), (timer) async {
         if (!mounted) { timer.cancel(); return; }
         _pollCount++;
-        
-        // Timeout after _maxPollAttempts
+
         if (_pollCount >= _maxPollAttempts) {
           timer.cancel();
           if (mounted) {
             setState(() => _isScraping = false);
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('N8N took too long. Vérifiez le workflow et réessayez.')),
+              const SnackBar(content: Text('N8N took too long. Check the workflow and retry.')),
             );
           }
           return;
@@ -109,7 +106,6 @@ class _InstagramTrendsScreenState extends ConsumerState<InstagramTrendsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Refresh Action
                       GlassCard(
                         padding: const EdgeInsets.all(20),
                         child: Row(
@@ -118,15 +114,15 @@ class _InstagramTrendsScreenState extends ConsumerState<InstagramTrendsScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Moteur de Tendances', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                                  Text('Trend Engine', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                                   SizedBox(height: 4),
-                                  Text('Actualisez pour les dernières vidéos virales.', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                                  Text('Refresh to get the latest viral reels.', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
                                 ],
                               ),
                             ),
                             GradientButton(
-                              label: _isScraping ? 'Scan...' : 'Actualiser 🔄',
-                              onPressed: _isScraping ? () {} : () => _triggerScrape("Instagram Trends"),
+                              label: _isScraping ? 'Scanning...' : 'Refresh 🔄',
+                              onPressed: _isScraping ? () {} : () => _triggerScrape(_selectedNiche),
                               isLoading: _isScraping,
                             ),
                           ],
@@ -134,53 +130,54 @@ class _InstagramTrendsScreenState extends ConsumerState<InstagramTrendsScreen> {
                       ),
                       const SizedBox(height: 32),
 
-                      // Results Header
                       Row(
                         children: [
-                          const Icon(Icons.flash_on_rounded, color: Colors.amber, size: 20),
-                          const SizedBox(width: 8),
+                          const Icon(Icons.local_fire_department_rounded, color: Color(0xFFE1306C), size: 18),
+                          const SizedBox(width: 6),
                           const Text(
-                            'Tendances Actuelles',
+                            'Trending Instagram Reels',
                             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                           ),
                           const Spacer(),
-                          if (!_isScraping) 
-                             IconButton(
-                               onPressed: () => ref.refresh(_trendingVideosProvider), 
-                               icon: const Icon(Icons.refresh_rounded, size: 20)
-                             ),
+                          if (!_isScraping)
+                            IconButton(
+                              onPressed: () => ref.refresh(_trendingVideosProvider),
+                              icon: const Icon(Icons.refresh_rounded, size: 20),
+                            ),
                         ],
                       ),
                       const SizedBox(height: 16),
                       trendsAsync.when(
-                        data: (trends) => trends.isEmpty 
-                          ? Center(child: Padding(
-                              padding: const EdgeInsets.only(top: 40),
-                              child: Column(
-                                children: [
-                                  if (_isScraping) const CircularProgressIndicator(),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    _isScraping 
-                                        ? 'Analyse N8N en cours...' 
-                                        : 'Aucune tendance en base de données.', 
-                                    style: const TextStyle(color: AppColors.textMuted)
+                        data: (trends) => trends.isEmpty
+                            ? Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(top: 40),
+                                  child: Column(
+                                    children: [
+                                      if (_isScraping) const CircularProgressIndicator(),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        _isScraping
+                                            ? 'N8N analysis in progress...'
+                                            : 'No trends in database yet.',
+                                        style: const TextStyle(color: AppColors.textMuted),
+                                      ),
+                                    ],
                                   ),
-                                ],
+                                ),
+                              )
+                            : GridView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 10,
+                                  mainAxisSpacing: 10,
+                                  childAspectRatio: 9 / 16,
+                                ),
+                                itemCount: trends.length,
+                                itemBuilder: (context, index) => _InstagramVideoCard(video: trends[index]),
                               ),
-                            ))
-                          : GridView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 1, // Full width for better read
-                                crossAxisSpacing: 12,
-                                mainAxisSpacing: 12,
-                                childAspectRatio: 3.5,
-                              ),
-                              itemCount: trends.length,
-                              itemBuilder: (context, index) => _NicheCard(video: trends[index]),
-                            ),
                         loading: () => const Center(child: CircularProgressIndicator()),
                         error: (e, _) => const Text('Failed to load trends from database'),
                       ),
@@ -200,62 +197,130 @@ class _InstagramTrendsScreenState extends ConsumerState<InstagramTrendsScreen> {
   }
 }
 
-class _NicheCard extends StatelessWidget {
-  const _NicheCard({required this.video});
+class _InstagramVideoCard extends StatelessWidget {
+  const _InstagramVideoCard({required this.video});
   final Map<String, dynamic> video;
 
   @override
   Widget build(BuildContext context) {
-    final title = video['title'] ?? 'Untitled Trend';
-    final vid = video['video_id'] ?? '';
-    final category = video['category'] ?? 'Instagram';
+    final title = video['title'] as String? ?? 'Untitled';
+    final vid = video['video_id'] as String? ?? '';
+    final category = video['category'] as String? ?? 'Instagram';
 
     return GestureDetector(
-      onTap: () => context.push('/ai-generator?niche=${Uri.encodeComponent(title)}&selectedVideoId=$vid&platform=instagram'),
-      child: GlassCard(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
+      onTap: () => context.push(
+        '/ai-generator?niche=${Uri.encodeComponent(title)}&selectedVideoId=$vid&platform=instagram',
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: Colors.white.withValues(alpha: 0.05),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        clipBehavior: Clip.hardEdge,
+        child: Stack(
+          fit: StackFit.expand,
           children: [
+            // Gradient placeholder (Instagram brand colors)
             Container(
-              width: 48, height: 48,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFF58529), Color(0xFFDD2A7B), Color(0xFF8134AF)],
+                ),
               ),
-              child: const Icon(Icons.trending_up_rounded, color: AppColors.primary),
+              child: const Center(
+                child: Icon(Icons.camera_alt_rounded, color: Colors.white38, size: 40),
+              ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(category, style: const TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 2),
-                  Text(
-                    title,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+
+            // Gradient overlay — bottom
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Container(
+                height: 160,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.85),
+                      Colors.transparent,
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: Colors.white24),
+
+            // Play icon — center
+            Center(
+              child: Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 26),
+              ),
+            ),
+
+            // Info — bottom overlay
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Trending badge (fixed — no view count in data)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withValues(alpha: 0.20),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.orange.withValues(alpha: 0.50)),
+                      ),
+                      child: const Text(
+                        '🔥 Trending',
+                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.orange),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                        height: 1.3,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    // Category chip
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDD2A7B).withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        category,
+                        style: const TextStyle(fontSize: 9, color: Colors.white),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
-    );
-  }
-}
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
-  final String title;
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.5),
     );
   }
 }

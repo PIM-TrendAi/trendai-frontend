@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
@@ -13,6 +13,19 @@ final _youtubeVideosProvider = FutureProvider<List<YouTubeVideoModel>>((ref) asy
   final list = res.data['results'] as List? ?? res.data as List;
   return list.map((e) => YouTubeVideoModel.fromJson(e as Map<String, dynamic>)).toList();
 });
+
+// Returns a momentum badge based on view count.
+({String label, Color color}) _ytMomentumBadge(int viewCount) {
+  if (viewCount >= 1000000) return (label: '🔥 Hot',    color: Colors.orange);
+  if (viewCount >= 100000)  return (label: '📈 Rising', color: AppColors.success);
+  return                           (label: '➡ Steady',  color: AppColors.textMuted);
+}
+
+String _ytFormatCount(int count) {
+  if (count >= 1000000) return '${(count / 1000000).toStringAsFixed(1)}M';
+  if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}K';
+  return count.toString();
+}
 
 class YouTubeEngineScreen extends ConsumerStatefulWidget {
   const YouTubeEngineScreen({super.key});
@@ -43,7 +56,7 @@ class _YouTubeEngineScreenState extends ConsumerState<YouTubeEngineScreen> {
       await dio.post('/trends/youtube-scrape/', data: {"niche": niche});
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('YouTube scraping "$niche" lancée... 🚀')),
+          SnackBar(content: Text('YouTube scraping "$niche" started... 🚀')),
         );
       }
 
@@ -62,7 +75,7 @@ class _YouTubeEngineScreenState extends ConsumerState<YouTubeEngineScreen> {
           if (mounted) {
             setState(() => _isScraping = false);
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('N8N took too long. Vérifiez le workflow et réessayez.')),
+              const SnackBar(content: Text('N8N took too long. Check the workflow and retry.')),
             );
           }
           return;
@@ -107,7 +120,6 @@ class _YouTubeEngineScreenState extends ConsumerState<YouTubeEngineScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Refresh Action
                       GlassCard(
                         padding: const EdgeInsets.all(20),
                         child: Row(
@@ -116,16 +128,16 @@ class _YouTubeEngineScreenState extends ConsumerState<YouTubeEngineScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Moteur de Tendances',
+                                  Text('Trend Engine',
                                       style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                                   SizedBox(height: 4),
-                                  Text('Actualisez pour les dernières vidéos YouTube virales.',
+                                  Text('Refresh to get the latest viral YouTube videos.',
                                       style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
                                 ],
                               ),
                             ),
                             GradientButton(
-                              label: _isScraping ? 'Scan...' : 'Actualiser 🔄',
+                              label: _isScraping ? 'Scanning...' : 'Refresh 🔄',
                               onPressed: _isScraping ? () {} : () => _triggerScrape("YouTube Trends"),
                               isLoading: _isScraping,
                             ),
@@ -134,13 +146,12 @@ class _YouTubeEngineScreenState extends ConsumerState<YouTubeEngineScreen> {
                       ),
                       const SizedBox(height: 32),
 
-                      // Results Header
                       Row(
                         children: [
-                          const Icon(Icons.flash_on_rounded, color: Colors.amber, size: 20),
-                          const SizedBox(width: 8),
+                          const Icon(Icons.local_fire_department_rounded, color: Color(0xFFFF0000), size: 18),
+                          const SizedBox(width: 6),
                           const Text(
-                            'YouTube Trending',
+                            'Trending YouTube Videos',
                             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                           ),
                           const Spacer(),
@@ -163,8 +174,8 @@ class _YouTubeEngineScreenState extends ConsumerState<YouTubeEngineScreen> {
                                       const SizedBox(height: 16),
                                       Text(
                                         _isScraping
-                                            ? 'Analyse N8N en cours...'
-                                            : 'Aucune vidéo en base de données.',
+                                            ? 'N8N analysis in progress...'
+                                            : 'No videos in database yet.',
                                         style: const TextStyle(color: AppColors.textMuted),
                                       ),
                                     ],
@@ -175,13 +186,13 @@ class _YouTubeEngineScreenState extends ConsumerState<YouTubeEngineScreen> {
                                 shrinkWrap: true,
                                 physics: const NeverScrollableScrollPhysics(),
                                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 1,
-                                  crossAxisSpacing: 12,
-                                  mainAxisSpacing: 12,
-                                  childAspectRatio: 3.5,
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 10,
+                                  mainAxisSpacing: 10,
+                                  childAspectRatio: 9 / 16,
                                 ),
                                 itemCount: videos.length,
-                                itemBuilder: (context, index) => _YouTubeVideoCard(video: videos[index]),
+                                itemBuilder: (context, index) => _YTVideoCard(video: videos[index]),
                               ),
                         loading: () => const Center(child: CircularProgressIndicator()),
                         error: (e, _) => const Text('Failed to load videos from database'),
@@ -204,69 +215,172 @@ class _YouTubeEngineScreenState extends ConsumerState<YouTubeEngineScreen> {
   }
 }
 
-class _YouTubeVideoCard extends StatelessWidget {
-  const _YouTubeVideoCard({required this.video});
+class _YTVideoCard extends StatelessWidget {
+  const _YTVideoCard({required this.video});
   final YouTubeVideoModel video;
 
-  String _formatViews(int count) {
-    if (count >= 1000000) return '${(count / 1000000).toStringAsFixed(1)}M';
-    if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}K';
-    return count.toString();
+  static const _ytRed = Color(0xFFFF0000);
+
+  List<String> _parseTags(String? tags) {
+    if (tags == null || tags.isEmpty) return [];
+    return tags.split(RegExp(r'[,\s]+'))
+        .map((t) => t.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
   }
 
   @override
   Widget build(BuildContext context) {
+    final thumbnailUrl = 'https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg';
+    final videoUrl = 'https://www.youtube.com/watch?v=${video.videoId}';
     final title = video.titre ?? 'YouTube Video';
     final niche = video.niche ?? 'YouTube';
+    final badge = _ytMomentumBadge(video.vues);
+    final tags = _parseTags(video.tags);
 
     return GestureDetector(
-      onTap: () => context.push(
-        '/ai-generator?niche=${Uri.encodeComponent(niche)}&selectedVideoId=${video.videoId}&platform=youtube',
-      ),
-      child: GlassCard(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
+      onTap: () => launchUrl(Uri.parse(videoUrl), mode: LaunchMode.externalApplication),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: Colors.white.withValues(alpha: 0.05),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        clipBehavior: Clip.hardEdge,
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFF0000).withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.play_arrow_rounded, color: Color(0xFFFF0000)),
+            // Thumbnail from YouTube CDN
+            Image.network(
+              thumbnailUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _placeholder(),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Row(
-                    children: [
-                      Text(niche,
-                          style: const TextStyle(
-                              color: Color(0xFFFF0000), fontSize: 10, fontWeight: FontWeight.bold)),
-                      const SizedBox(width: 8),
-                      if (video.vues > 0)
-                        Text('${_formatViews(video.vues)} views',
-                            style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+
+            // Gradient overlay — bottom
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Container(
+                height: 160,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.85),
+                      Colors.transparent,
                     ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    title,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                ),
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: Colors.white24),
+
+            // Play icon — center
+            Center(
+              child: Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 26),
+              ),
+            ),
+
+            // Open-in-new — top right
+            Positioned(
+              top: 8, right: 8,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Icon(Icons.open_in_new_rounded, size: 13, color: Colors.white),
+              ),
+            ),
+
+            // Info — bottom overlay
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: badge.color.withValues(alpha: 0.20),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: badge.color.withValues(alpha: 0.50)),
+                      ),
+                      child: Text(
+                        badge.label,
+                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: badge.color),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                        height: 1.3,
+                      ),
+                    ),
+                    if (video.vues > 0) ...[
+                      const SizedBox(height: 6),
+                      Row(children: [
+                        const Icon(Icons.play_arrow_rounded, size: 12, color: Colors.white70),
+                        const SizedBox(width: 2),
+                        Text(_ytFormatCount(video.vues),
+                            style: const TextStyle(fontSize: 10, color: Colors.white70)),
+                      ]),
+                    ],
+                    if (tags.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 3,
+                        children: tags.take(2).map((tag) => Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _ytRed.withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(tag, style: const TextStyle(fontSize: 9, color: Colors.white)),
+                        )).toList(),
+                      ),
+                    ] else ...[
+                      const SizedBox(height: 5),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: _ytRed.withValues(alpha: 0.25),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(niche, style: const TextStyle(fontSize: 9, color: Colors.white)),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
+
+  Widget _placeholder() => Container(
+    color: _ytRed.withValues(alpha: 0.10),
+    child: const Center(
+      child: Icon(Icons.play_circle_outline_rounded, color: _ytRed, size: 40),
+    ),
+  );
 }

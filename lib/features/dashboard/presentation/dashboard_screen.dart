@@ -3,16 +3,104 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
 import '../../auth/data/models.dart';
+import '../../trends/data/trends_provider.dart';
 
-final _dashboardTrendsProvider = FutureProvider<List<TrendModel>>((ref) async {
+class _DashboardVideo {
+  final String platform;
+  final String title;
+  final String thumbnailUrl;
+  final String externalUrl;
+  final String viewsLabel;
+  final int views;
+
+  const _DashboardVideo({
+    required this.platform,
+    required this.title,
+    required this.thumbnailUrl,
+    this.externalUrl = '',
+    this.viewsLabel = '',
+    this.views = 0,
+  });
+}
+
+String _fmtCount(int count) {
+  if (count >= 1000000) return '${(count / 1000000).toStringAsFixed(1)}M';
+  if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}K';
+  if (count > 0) return count.toString();
+  return '';
+}
+
+final _dashboardVideosProvider = FutureProvider<List<_DashboardVideo>>((ref) async {
   final dio = ref.read(dioProvider);
-  final res = await dio.get('/trends/', queryParameters: {'sort': 'growth'});
-  final list = res.data['results'] as List? ?? res.data as List;
-  return list.map((e) => TrendModel.fromJson(e as Map<String, dynamic>)).toList();
+  final results = <_DashboardVideo>[];
+
+  final futures = await Future.wait([
+    // TikTok
+    ref.read(tiktokVideosProvider('').future).then<List<_DashboardVideo>>((vids) =>
+      vids.take(3).map((v) => _DashboardVideo(
+        platform: 'tiktok',
+        title: v.title,
+        thumbnailUrl: v.thumbnailUrl,
+        externalUrl: v.tiktokUrl,
+        viewsLabel: v.views,
+      )).toList(),
+    ).catchError((_) => <_DashboardVideo>[]),
+    // Instagram
+    dio.get('/n8n/trending_videos/').then<List<_DashboardVideo>>((res) {
+      final list = res.data['results'] as List? ?? res.data as List;
+      return list.cast<Map<String, dynamic>>().take(3).map((j) => _DashboardVideo(
+        platform: 'instagram',
+        title: j['title'] as String? ?? 'Instagram Reel',
+        thumbnailUrl: j['thumbnail_url'] as String? ?? '',
+        externalUrl: j['tiktok_url'] as String? ?? '',
+        viewsLabel: j['views'] as String? ?? '',
+      )).toList();
+    }).catchError((_) => <_DashboardVideo>[]),
+    // YouTube
+    dio.get('/trends/youtube-videos/').then<List<_DashboardVideo>>((res) {
+      final list = res.data['results'] as List? ?? res.data as List;
+      return list.cast<Map<String, dynamic>>().take(3).map((j) {
+        final yt = YouTubeVideoModel.fromJson(j);
+        return _DashboardVideo(
+          platform: 'youtube',
+          title: yt.titre ?? 'YouTube Video',
+          thumbnailUrl: 'https://img.youtube.com/vi/${yt.videoId}/hqdefault.jpg',
+          externalUrl: 'https://www.youtube.com/watch?v=${yt.videoId}',
+          viewsLabel: _fmtCount(yt.vues),
+          views: yt.vues,
+        );
+      }).toList();
+    }).catchError((_) => <_DashboardVideo>[]),
+    // Facebook
+    dio.get('/trends/reels/').then<List<_DashboardVideo>>((res) {
+      final list = res.data['results'] as List? ?? res.data as List;
+      return list.cast<Map<String, dynamic>>().take(3).map((j) {
+        final fb = FacebookReelModel.fromJson(j);
+        return _DashboardVideo(
+          platform: 'facebook',
+          title: (fb.text != null && fb.text!.isNotEmpty) ? fb.text! : 'Facebook Reel',
+          thumbnailUrl: fb.thumbnailUrl ?? '',
+          externalUrl: fb.reelUrl ?? '',
+          viewsLabel: _fmtCount(fb.playCount),
+          views: fb.playCount,
+        );
+      }).toList();
+    }).catchError((_) => <_DashboardVideo>[]),
+  ]);
+
+  // Interleave
+  final maxLen = futures.fold<int>(0, (m, b) => b.length > m ? b.length : m);
+  for (var i = 0; i < maxLen; i++) {
+    for (final bucket in futures) {
+      if (i < bucket.length) results.add(bucket[i]);
+    }
+  }
+  return results;
 });
 
 final _analyticsSummaryProvider = FutureProvider<Map<String, dynamic>>((ref) async {
@@ -37,7 +125,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final trendsAsync = ref.watch(_dashboardTrendsProvider);
     final summaryAsync = ref.watch(_analyticsSummaryProvider);
 
     return Scaffold(
@@ -69,18 +156,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     ),
                     const SizedBox(height: 28),
 
-                    // ── Instagram Section (Added)
-                    _InstagramScraperCard(),
-                    const SizedBox(height: 28),
-
-                    // ── Facebook Section
-                    _FacebookScraperCard(),
-                    const SizedBox(height: 28),
-
-                    // ── YouTube Section
-                    _YouTubeScraperCard(),
-                    const SizedBox(height: 28),
-
                     // ── Trending Now
                     Row(
                       children: [
@@ -91,22 +166,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       ],
                     ),
                     const SizedBox(height: 14),
-                    trendsAsync.when(
-                      data: (trends) => SizedBox(
-                        height: 170,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          padding: EdgeInsets.zero,
-                          itemCount: trends.take(5).length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 14),
-                          itemBuilder: (ctx, i) => _TrendingCard(trend: trends[i]),
+                    Consumer(builder: (context, ref, _) {
+                      final videosAsync = ref.watch(_dashboardVideosProvider);
+                      return videosAsync.when(
+                        data: (videos) => SizedBox(
+                          height: 200,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            padding: EdgeInsets.zero,
+                            itemCount: videos.take(8).length,
+                            separatorBuilder: (_, __) => const SizedBox(width: 12),
+                            itemBuilder: (ctx, i) => _DashboardVideoCard(video: videos[i]),
+                          ),
                         ),
-                      ),
-                      loading: () => const Center(child: CircularProgressIndicator()),
-                      error: (e, _) => const GlassCard(
-                        child: Text('Could not load trends. Check API connection.', style: TextStyle(color: AppColors.textMuted)),
-                      ),
-                    ),
+                        loading: () => const SizedBox(height: 200, child: Center(child: CircularProgressIndicator())),
+                        error: (e, _) => const GlassCard(
+                          child: Text('Could not load trending videos.', style: TextStyle(color: AppColors.textMuted)),
+                        ),
+                      );
+                    }),
                     const SizedBox(height: 28),
 
                     // ── Multi-Platform Heatmap
@@ -312,52 +390,108 @@ class _CircularProgressPainter extends CustomPainter {
   bool shouldRepaint(_) => true;
 }
 
-// ── Trending Card (horizontal scroll)
-class _TrendingCard extends StatelessWidget {
-  const _TrendingCard({required this.trend});
-  final TrendModel trend;
+// ── Dashboard Video Card (horizontal scroll with thumbnails)
+class _DashboardVideoCard extends StatelessWidget {
+  const _DashboardVideoCard({required this.video});
+  final _DashboardVideo video;
+
+  static const _platformColors = {
+    'tiktok': AppColors.tikTok,
+    'instagram': Color(0xFFDD2A7B),
+    'youtube': Color(0xFFFF0000),
+    'facebook': Color(0xFF1877F2),
+  };
+
+  static const _platformLabels = {
+    'tiktok': 'TikTok',
+    'instagram': 'Instagram',
+    'youtube': 'YouTube',
+    'facebook': 'Facebook',
+  };
 
   @override
   Widget build(BuildContext context) {
+    final color = _platformColors[video.platform] ?? AppColors.primary;
+    final label = _platformLabels[video.platform] ?? video.platform;
+
     return GestureDetector(
-      onTap: () => context.go('/trend/${trend.id}'),
+      onTap: video.externalUrl.isNotEmpty
+          ? () => launchUrl(Uri.parse(video.externalUrl), mode: LaunchMode.externalApplication)
+          : null,
       child: Container(
-        width: 200,
-        padding: const EdgeInsets.all(16),
+        width: 130,
         decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
           color: Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(20),
           border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        clipBehavior: Clip.hardEdge,
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                TrendTypeIcon(type: trend.type),
-                Row(
+            video.thumbnailUrl.isNotEmpty
+                ? Image.network(video.thumbnailUrl, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: color.withValues(alpha: 0.10),
+                      child: Center(child: Icon(Icons.play_circle_outline_rounded, color: color, size: 32)),
+                    ))
+                : Container(
+                    color: color.withValues(alpha: 0.10),
+                    child: Center(child: Icon(Icons.play_circle_outline_rounded, color: color, size: 32)),
+                  ),
+            // Gradient overlay
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Container(
+                height: 80,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                    colors: [Colors.black.withValues(alpha: 0.85), Colors.transparent],
+                  ),
+                ),
+              ),
+            ),
+            // Play button
+            Center(
+              child: Container(
+                width: 32, height: 32,
+                decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.4), shape: BoxShape.circle),
+                child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20),
+              ),
+            ),
+            // Platform badge
+            Positioned(
+              top: 6, left: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(label, style: const TextStyle(fontSize: 7, fontWeight: FontWeight.w700, color: Colors.white)),
+              ),
+            ),
+            // Title & views
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.arrow_upward_rounded, color: AppColors.success, size: 14),
-                    Text('${trend.growth.toInt()}%',
-                        style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.w600, fontSize: 12)),
+                    Text(video.title,
+                        maxLines: 2, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white, height: 1.2)),
+                    if (video.viewsLabel.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(video.viewsLabel,
+                          style: const TextStyle(fontSize: 9, color: Colors.white70)),
+                    ],
                   ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(trend.hashtag,
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis),
-            const Spacer(),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Score', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
-                GradientText('${trend.score.toInt()}%',
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-              ],
+              ),
             ),
           ],
         ),
@@ -450,135 +584,4 @@ class _RecommendationCard extends StatelessWidget {
   }
 }
 
-// ── Instagram Scraper Card
-class _InstagramScraperCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return GlassCard(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF833AB4), Color(0xFFFD1D1D), Color(0xFFFCB045)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 20),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text('Instagram Engine 🔥', 
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Scrape trending niches, choose your favorite, and generate a viral reel in seconds.',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.5),
-          ),
-          const SizedBox(height: 18),
-          GradientButton(
-            label: 'Explore Instagram Trends 🚀',
-            onPressed: () => context.go('/instagram-engine'),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
-// ── Facebook Scraper Card
-class _FacebookScraperCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return GlassCard(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1877F2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.facebook, color: Colors.white, size: 24),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text('Facebook Engine 🔥',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Scrape trending Facebook reels, pick your favorite, and generate viral content instantly.',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.5),
-          ),
-          const SizedBox(height: 18),
-          GradientButton(
-            label: 'Explore Facebook Reels 🚀',
-            onPressed: () => context.go('/facebook-engine'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── YouTube Scraper Card
-class _YouTubeScraperCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return GlassCard(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF0000),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 24),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text('YouTube Engine 🔥',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Scrape trending YouTube videos, pick your favorite, and generate viral shorts instantly.',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.5),
-          ),
-          const SizedBox(height: 18),
-          GradientButton(
-            label: 'Explore YouTube Trends 🚀',
-            onPressed: () => context.go('/youtube-engine'),
-          ),
-        ],
-      ),
-    );
-  }
-}

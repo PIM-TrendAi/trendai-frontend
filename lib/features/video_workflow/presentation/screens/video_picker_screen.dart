@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/network/dio_client.dart';
 import '../../../../core/storage/secure_storage.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
+import '../../../auth/data/models.dart';
 import '../../data/models/workflow_models.dart';
 import '../../data/n8n_repository.dart';
 import '../providers/workflow_provider.dart';
@@ -39,12 +41,80 @@ bool _matchesNiche(TrendingVideoModel v, String niche) {
   return keywords.any((kw) => haystack.contains(kw));
 }
 
+String _pageNameFromUrl(String? url) {
+  if (url == null || url.isEmpty) return '';
+  final parts = url.replaceAll(RegExp(r'\?.*'), '').split('/').where((s) => s.isNotEmpty).toList();
+  return parts.isNotEmpty ? parts.last : '';
+}
+
+String _formatViewCount(int count) {
+  if (count >= 1000000) return '${(count / 1000000).toStringAsFixed(1)}M';
+  if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}K';
+  if (count > 0) return count.toString();
+  return '';
+}
+
 // (niche, platform)
 final _trendingVideosProvider =
     FutureProvider.family<List<TrendingVideoModel>, (String?, String)>((ref, params) async {
   final (niche, platform) = params;
-  // Only TikTok is integrated — other platforms return empty until colleagues add support
-  if (platform != 'tiktok') return [];
+  final dio = ref.read(dioProvider);
+
+  if (platform == 'instagram') {
+    final res = await dio.get('/n8n/trending_videos/');
+    final list = res.data['results'] as List? ?? res.data as List;
+    return list.cast<Map<String, dynamic>>().map((json) => TrendingVideoModel(
+      videoId: json['video_id'] as String? ?? '',
+      title: json['title'] as String? ?? 'Instagram Reel',
+      author: '',
+      thumbnailUrl: json['thumbnail_url'] as String? ?? '',
+      views: '',
+      likes: '',
+      niche: json['category'] as String? ?? 'Instagram',
+    )).toList();
+  }
+
+  if (platform == 'facebook') {
+    final res = await dio.get('/trends/reels/');
+    final list = res.data['results'] as List? ?? res.data as List;
+    return list.cast<Map<String, dynamic>>().map((json) {
+      final reel = FacebookReelModel.fromJson(json);
+      final pageName = _pageNameFromUrl(reel.pageUrl);
+      return TrendingVideoModel(
+        videoId: reel.reelId,
+        title: (reel.text != null && reel.text!.isNotEmpty) ? reel.text! : (pageName.isNotEmpty ? pageName : 'Facebook Reel'),
+        author: pageName,
+        thumbnailUrl: reel.thumbnailUrl ?? '',
+        views: _formatViewCount(reel.playCount),
+        likes: '',
+        niche: reel.niche ?? 'Facebook',
+        hashtags: reel.niche != null ? [reel.niche!] : [],
+        tiktokUrl: reel.reelUrl ?? '',
+      );
+    }).toList();
+  }
+
+  if (platform == 'youtube') {
+    final res = await dio.get('/trends/youtube-videos/');
+    final list = res.data['results'] as List? ?? res.data as List;
+    return list.cast<Map<String, dynamic>>().map((json) {
+      final video = YouTubeVideoModel.fromJson(json);
+      final tags = (video.tags ?? '').split(RegExp(r'[,\s]+')).where((t) => t.isNotEmpty).toList();
+      return TrendingVideoModel(
+        videoId: video.videoId,
+        title: video.titre ?? 'YouTube Video',
+        author: '',
+        thumbnailUrl: 'https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg',
+        views: _formatViewCount(video.vues),
+        likes: '',
+        niche: video.niche ?? 'YouTube',
+        hashtags: tags,
+        tiktokUrl: 'https://www.youtube.com/watch?v=${video.videoId}',
+      );
+    }).toList();
+  }
+
+  // TikTok
   final repo = ref.read(n8nRepositoryProvider);
   final all = await repo.fetchTrendingVideos(niche: null, platform: platform);
   if (niche == null || niche.isEmpty) return all;
@@ -100,6 +170,20 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
       return;
     }
 
+    // For Instagram, YouTube, Facebook: go to Production Studio which handles
+    // the platform-specific workflow via Django → n8n.
+    if (_selectedPlatform != 'tiktok') {
+      if (!mounted) return;
+      final niche = _niche ?? video.niche;
+      context.push(
+        '/ai-generator?niche=${Uri.encodeComponent(niche)}'
+        '&selectedVideoId=${video.videoId}'
+        '&platform=$_selectedPlatform',
+      );
+      return;
+    }
+
+    // TikTok: direct n8n webhook flow → script review screen
     final profile = await ref.read(secureStorageProvider).readCreatorProfile();
     final creatorId = profile['id'] ?? 'unknown';
 
@@ -113,6 +197,7 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
           videoLikes: video.likes,
           niche: _niche ?? video.niche,
           userPrompt: _promptCtrl.text.trim(),
+          platform: _selectedPlatform,
         );
 
     if (!mounted) return;
@@ -310,9 +395,9 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
                                           v.thumbnailUrl,
                                           fit: BoxFit.cover,
                                           errorBuilder: (_, __, ___) =>
-                                              _PlaceholderThumb(),
+                                              _PlaceholderThumb(platform: _selectedPlatform),
                                         )
-                                      : _PlaceholderThumb(),
+                                      : _PlaceholderThumb(platform: _selectedPlatform),
 
                                   // Dark gradient at bottom
                                   Positioned(
@@ -487,13 +572,45 @@ class _PlatformChip extends StatelessWidget {
 }
 
 class _PlaceholderThumb extends StatelessWidget {
+  const _PlaceholderThumb({this.platform = 'tiktok'});
+  final String platform;
+
   @override
   Widget build(BuildContext context) {
+    if (platform == 'instagram') {
+      return Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFF58529), Color(0xFFDD2A7B), Color(0xFF8134AF)],
+          ),
+        ),
+        child: const Center(
+          child: Icon(Icons.camera_alt_rounded, color: Colors.white38, size: 40),
+        ),
+      );
+    }
+    if (platform == 'facebook') {
+      return Container(
+        color: const Color(0xFF1877F2).withValues(alpha: 0.15),
+        child: const Center(
+          child: Icon(Icons.play_circle_outline_rounded, color: Color(0xFF1877F2), size: 40),
+        ),
+      );
+    }
+    if (platform == 'youtube') {
+      return Container(
+        color: const Color(0xFFFF0000).withValues(alpha: 0.10),
+        child: const Center(
+          child: Icon(Icons.play_circle_outline_rounded, color: Color(0xFFFF0000), size: 40),
+        ),
+      );
+    }
     return Container(
       color: Colors.white10,
       child: const Center(
-        child: Icon(Icons.play_circle_outline_rounded,
-            color: AppColors.textMuted, size: 40),
+        child: Icon(Icons.play_circle_outline_rounded, color: AppColors.textMuted, size: 40),
       ),
     );
   }

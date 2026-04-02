@@ -20,6 +20,27 @@ final _allTrendsProvider = FutureProvider.family<List<TrendModel>, Map<String, S
   },
 );
 
+final _instagramTrendsVideosProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final dio = ref.read(dioProvider);
+  final res = await dio.get('/n8n/trending_videos/');
+  final list = res.data['results'] as List? ?? res.data as List;
+  return list.cast<Map<String, dynamic>>();
+});
+
+final _facebookTrendsReelsProvider = FutureProvider<List<FacebookReelModel>>((ref) async {
+  final dio = ref.read(dioProvider);
+  final res = await dio.get('/trends/reels/');
+  final list = res.data['results'] as List? ?? res.data as List;
+  return list.map((e) => FacebookReelModel.fromJson(e as Map<String, dynamic>)).toList();
+});
+
+final _youtubeTrendsVideosProvider = FutureProvider<List<YouTubeVideoModel>>((ref) async {
+  final dio = ref.read(dioProvider);
+  final res = await dio.get('/trends/youtube-videos/');
+  final list = res.data['results'] as List? ?? res.data as List;
+  return list.map((e) => YouTubeVideoModel.fromJson(e as Map<String, dynamic>)).toList();
+});
+
 /// Parses human-readable counts like "1.2M", "450K", "3B" → integer.
 int _parseCount(String s) {
   final v = s.trim().toUpperCase().replaceAll(',', '');
@@ -227,9 +248,27 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
                   controller: _scrollCtrl,
                   padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
                   children: [
-                    if (_platform == 'TikTok' || _platform == 'All') ...[
+                    if (_platform == 'All') ...[
+                      _AllPlatformsMixedSection(sort: _sort, niche: _niche),
+                      const SizedBox(height: 20),
+                    ],
+                    if (_platform == 'TikTok') ...[
                       _TikTokVideosSection(sort: _sort, niche: _niche),
                       const SizedBox(height: 20),
+                    ],
+                    if (_platform == 'Instagram') ...[
+                      _InstagramTrendsSection(sort: _sort),
+                      const SizedBox(height: 20),
+                    ],
+                    if (_platform == 'YouTube') ...[
+                      _YouTubeTrendsSection(sort: _sort),
+                      const SizedBox(height: 20),
+                    ],
+                    if (_platform == 'Facebook') ...[
+                      _FacebookTrendsSection(sort: _sort),
+                      const SizedBox(height: 20),
+                    ],
+                    if (_platform == 'TikTok' || _platform == 'All') ...[
                       Text('Trending Hashtags',
                           style: Theme.of(context).textTheme.titleSmall?.copyWith(
                               color: AppColors.textMuted, fontWeight: FontWeight.w600)),
@@ -266,6 +305,320 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
             child: TrendAIBottomNav(currentIndex: 1, scrollController: _scrollCtrl),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── All Platforms Mixed Section ──────────────────────────────────────────────
+
+/// A unified item for the mixed "All" grid.
+class _MixedVideo {
+  final String platform; // tiktok, instagram, youtube, facebook
+  final String title;
+  final String thumbnailUrl;
+  final String author;
+  final int views;
+  final String viewsLabel;
+  final String likes;
+  final String category;
+  final String videoId;
+  final String externalUrl;
+  final List<String> hashtags;
+
+  const _MixedVideo({
+    required this.platform,
+    required this.title,
+    required this.thumbnailUrl,
+    this.author = '',
+    this.views = 0,
+    this.viewsLabel = '',
+    this.likes = '',
+    this.category = '',
+    this.videoId = '',
+    this.externalUrl = '',
+    this.hashtags = const [],
+  });
+}
+
+final _allPlatformsMixedProvider = FutureProvider<List<_MixedVideo>>((ref) async {
+  final dio = ref.read(dioProvider);
+  final results = <_MixedVideo>[];
+
+  // Fetch all in parallel
+  final futures = await Future.wait([
+    ref.read(tiktokVideosProvider('').future).then<List<_MixedVideo>>((vids) =>
+      vids.map((v) => _MixedVideo(
+        platform: 'tiktok',
+        title: v.title,
+        thumbnailUrl: v.thumbnailUrl,
+        author: v.author,
+        views: _parseCount(v.views),
+        viewsLabel: v.views,
+        likes: v.likes,
+        category: v.niche,
+        videoId: v.videoId,
+        externalUrl: v.tiktokUrl,
+        hashtags: v.hashtags,
+      )).toList(),
+    ).catchError((_) => <_MixedVideo>[]),
+    dio.get('/n8n/trending_videos/').then<List<_MixedVideo>>((res) {
+      final list = res.data['results'] as List? ?? res.data as List;
+      return list.cast<Map<String, dynamic>>().map((j) => _MixedVideo(
+        platform: 'instagram',
+        title: j['title'] as String? ?? 'Instagram Reel',
+        thumbnailUrl: j['thumbnail_url'] as String? ?? '',
+        author: j['author'] as String? ?? '',
+        views: _parseCount(j['views'] as String? ?? '0'),
+        viewsLabel: j['views'] as String? ?? '',
+        likes: j['likes'] as String? ?? '',
+        category: j['category'] as String? ?? 'Instagram',
+        videoId: j['video_id'] as String? ?? '',
+        externalUrl: j['tiktok_url'] as String? ?? '',
+      )).toList();
+    }).catchError((_) => <_MixedVideo>[]),
+    dio.get('/trends/youtube-videos/').then<List<_MixedVideo>>((res) {
+      final list = res.data['results'] as List? ?? res.data as List;
+      return list.cast<Map<String, dynamic>>().map((j) {
+        final yt = YouTubeVideoModel.fromJson(j);
+        return _MixedVideo(
+          platform: 'youtube',
+          title: yt.titre ?? 'YouTube Video',
+          thumbnailUrl: 'https://img.youtube.com/vi/${yt.videoId}/hqdefault.jpg',
+          views: yt.vues,
+          viewsLabel: _formatCount(yt.vues),
+          category: yt.niche ?? 'YouTube',
+          videoId: yt.videoId,
+          externalUrl: 'https://www.youtube.com/watch?v=${yt.videoId}',
+        );
+      }).toList();
+    }).catchError((_) => <_MixedVideo>[]),
+    dio.get('/trends/reels/').then<List<_MixedVideo>>((res) {
+      final list = res.data['results'] as List? ?? res.data as List;
+      return list.cast<Map<String, dynamic>>().map((j) {
+        final fb = FacebookReelModel.fromJson(j);
+        return _MixedVideo(
+          platform: 'facebook',
+          title: (fb.text != null && fb.text!.isNotEmpty) ? fb.text! : 'Facebook Reel',
+          thumbnailUrl: fb.thumbnailUrl ?? '',
+          views: fb.playCount,
+          viewsLabel: _formatCount(fb.playCount),
+          category: fb.niche ?? 'Facebook',
+          videoId: fb.reelId,
+          externalUrl: fb.reelUrl ?? '',
+        );
+      }).toList();
+    }).catchError((_) => <_MixedVideo>[]),
+  ]);
+
+  // Round-robin interleave: pick 1 from each platform in turn
+  final buckets = futures.toList();
+  final maxLen = buckets.fold<int>(0, (m, b) => b.length > m ? b.length : m);
+  for (var i = 0; i < maxLen; i++) {
+    for (final bucket in buckets) {
+      if (i < bucket.length) results.add(bucket[i]);
+    }
+  }
+  return results;
+});
+
+class _AllPlatformsMixedSection extends ConsumerWidget {
+  const _AllPlatformsMixedSection({required this.sort, required this.niche});
+  final String sort;
+  final String niche;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(_allPlatformsMixedProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          const Icon(Icons.local_fire_department_rounded, color: AppColors.primary, size: 18),
+          const SizedBox(width: 6),
+          Text('Trending Across All Platforms',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+        ]),
+        const SizedBox(height: 12),
+        async.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (_, __) => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(child: Text('Could not load videos', style: TextStyle(color: AppColors.textMuted))),
+          ),
+          data: (videos) {
+            if (videos.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(child: Text('No trending videos found', style: TextStyle(color: AppColors.textMuted))),
+              );
+            }
+            final sorted = [...videos];
+            if (sort == 'views') {
+              sorted.sort((a, b) => b.views.compareTo(a.views));
+            } else if (sort == 'likes') {
+              sorted.sort((a, b) => _parseCount(b.likes).compareTo(_parseCount(a.likes)));
+            }
+            // 'recent' keeps API order
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 9 / 16,
+              ),
+              itemCount: sorted.length,
+              itemBuilder: (_, i) => _MixedVideoCard(video: sorted[i]),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _MixedVideoCard extends StatelessWidget {
+  const _MixedVideoCard({required this.video});
+  final _MixedVideo video;
+
+  static const _platformColors = {
+    'tiktok': AppColors.tikTok,
+    'instagram': Color(0xFFDD2A7B),
+    'youtube': Color(0xFFFF0000),
+    'facebook': Color(0xFF1877F2),
+  };
+
+  static const _platformIcons = {
+    'tiktok': Icons.music_note_rounded,
+    'instagram': Icons.camera_alt_rounded,
+    'youtube': Icons.play_circle_filled_rounded,
+    'facebook': Icons.facebook_rounded,
+  };
+
+  static const _platformLabels = {
+    'tiktok': 'TikTok',
+    'instagram': 'Instagram',
+    'youtube': 'YouTube',
+    'facebook': 'Facebook',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _platformColors[video.platform] ?? AppColors.primary;
+    final label = _platformLabels[video.platform] ?? video.platform;
+
+    return GestureDetector(
+      onTap: video.externalUrl.isNotEmpty
+          ? () => launchUrl(Uri.parse(video.externalUrl), mode: LaunchMode.externalApplication)
+          : null,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: Colors.white.withValues(alpha: 0.05),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        clipBehavior: Clip.hardEdge,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            video.thumbnailUrl.isNotEmpty
+                ? Image.network(video.thumbnailUrl, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: color.withValues(alpha: 0.10),
+                      child: Center(child: Icon(_platformIcons[video.platform] ?? Icons.play_circle_outline_rounded, color: color, size: 40)),
+                    ))
+                : Container(
+                    color: color.withValues(alpha: 0.10),
+                    child: Center(child: Icon(_platformIcons[video.platform] ?? Icons.play_circle_outline_rounded, color: color, size: 40)),
+                  ),
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Container(
+                height: 160,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                    colors: [Colors.black.withValues(alpha: 0.85), Colors.transparent],
+                  ),
+                ),
+              ),
+            ),
+            Center(
+              child: Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.4), shape: BoxShape.circle),
+                child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 26),
+              ),
+            ),
+            // Platform badge — top left
+            Positioned(
+              top: 8, left: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(_platformIcons[video.platform] ?? Icons.play_circle_outline_rounded, color: Colors.white, size: 10),
+                    const SizedBox(width: 3),
+                    Text(label, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: Colors.white)),
+                  ],
+                ),
+              ),
+            ),
+            if (video.externalUrl.isNotEmpty)
+              Positioned(
+                top: 8, right: 8,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(6)),
+                  child: const Icon(Icons.open_in_new_rounded, size: 13, color: Colors.white),
+                ),
+              ),
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (video.author.isNotEmpty)
+                      Text('@${video.author}',
+                          style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w700),
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 3),
+                    Text(video.title,
+                        maxLines: 2, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white, height: 1.3)),
+                    if (video.viewsLabel.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Row(children: [
+                        const Icon(Icons.play_arrow_rounded, size: 12, color: Colors.white70),
+                        const SizedBox(width: 2),
+                        Text(video.viewsLabel, style: const TextStyle(fontSize: 10, color: Colors.white70)),
+                      ]),
+                    ],
+                    const SizedBox(height: 5),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(color: color.withValues(alpha: 0.25), borderRadius: BorderRadius.circular(4)),
+                      child: Text(video.category, style: const TextStyle(fontSize: 9, color: Colors.white), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -595,6 +948,582 @@ class _TrendCard extends StatelessWidget {
                 backgroundColor: Colors.white.withValues(alpha: 0.06),
                 valueColor: const AlwaysStoppedAnimation(AppColors.primary),
                 minHeight: 6,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Shared count formatter ───────────────────────────────────────────────────
+
+String _formatCount(int count) {
+  if (count >= 1000000) return '${(count / 1000000).toStringAsFixed(1)}M';
+  if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}K';
+  return count.toString();
+}
+
+// ── Instagram Trends Section ─────────────────────────────────────────────────
+
+class _InstagramTrendsSection extends ConsumerWidget {
+  const _InstagramTrendsSection({required this.sort});
+  final String sort;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(_instagramTrendsVideosProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          const Icon(Icons.local_fire_department_rounded, color: Color(0xFFE1306C), size: 18),
+          const SizedBox(width: 6),
+          Text('Trending Instagram Reels',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+        ]),
+        const SizedBox(height: 12),
+        async.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (_, __) => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(child: Text('Could not load reels', style: TextStyle(color: AppColors.textMuted))),
+          ),
+          data: (videos) {
+            if (videos.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(child: Text('No Instagram reels found', style: TextStyle(color: AppColors.textMuted))),
+              );
+            }
+            final sorted = [...videos];
+            if (sort == 'views') {
+              sorted.sort((a, b) => _parseCount(b['views'] as String? ?? '0').compareTo(_parseCount(a['views'] as String? ?? '0')));
+            } else if (sort == 'likes') {
+              sorted.sort((a, b) => _parseCount(b['likes'] as String? ?? '0').compareTo(_parseCount(a['likes'] as String? ?? '0')));
+            }
+            // 'recent' keeps API order
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 9 / 16,
+              ),
+              itemCount: sorted.length,
+              itemBuilder: (_, i) => _InstagramTrendCard(video: sorted[i]),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _InstagramTrendCard extends StatelessWidget {
+  const _InstagramTrendCard({required this.video});
+  final Map<String, dynamic> video;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = video['title'] as String? ?? 'Instagram Reel';
+    final vid = video['video_id'] as String? ?? '';
+    final category = video['category'] as String? ?? 'Instagram';
+    final thumbnailUrl = video['thumbnail_url'] as String? ?? '';
+
+    return GestureDetector(
+      onTap: () => context.push(
+        '/ai-generator?niche=${Uri.encodeComponent(title)}&selectedVideoId=$vid&platform=instagram',
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: Colors.white.withValues(alpha: 0.05),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        clipBehavior: Clip.hardEdge,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            thumbnailUrl.isNotEmpty
+                ? Image.network(
+                    thumbnailUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFFF58529), Color(0xFFDD2A7B), Color(0xFF8134AF)],
+                        ),
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.camera_alt_rounded, color: Colors.white38, size: 40),
+                      ),
+                    ),
+                  )
+                : Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFFF58529), Color(0xFFDD2A7B), Color(0xFF8134AF)],
+                      ),
+                    ),
+                    child: const Center(
+                      child: Icon(Icons.camera_alt_rounded, color: Colors.white38, size: 40),
+                    ),
+                  ),
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Container(
+                height: 160,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [Colors.black.withValues(alpha: 0.85), Colors.transparent],
+                  ),
+                ),
+              ),
+            ),
+            Center(
+              child: Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.4), shape: BoxShape.circle),
+                child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 26),
+              ),
+            ),
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withValues(alpha: 0.20),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.orange.withValues(alpha: 0.50)),
+                      ),
+                      child: const Text('🔥 Trending',
+                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.orange)),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white, height: 1.3)),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDD2A7B).withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(category,
+                          style: const TextStyle(fontSize: 9, color: Colors.white),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── YouTube Trends Section ───────────────────────────────────────────────────
+
+class _YouTubeTrendsSection extends ConsumerWidget {
+  const _YouTubeTrendsSection({required this.sort});
+  final String sort;
+
+  static const _ytRed = Color(0xFFFF0000);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(_youtubeTrendsVideosProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          const Icon(Icons.local_fire_department_rounded, color: _ytRed, size: 18),
+          const SizedBox(width: 6),
+          Text('Trending YouTube Videos',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+        ]),
+        const SizedBox(height: 12),
+        async.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (_, __) => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(child: Text('Could not load videos', style: TextStyle(color: AppColors.textMuted))),
+          ),
+          data: (videos) {
+            if (videos.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(child: Text('No YouTube videos found', style: TextStyle(color: AppColors.textMuted))),
+              );
+            }
+            final sorted = [...videos];
+            if (sort == 'views') {
+              sorted.sort((a, b) => b.vues.compareTo(a.vues));
+            } else if (sort == 'recent') {
+              sorted.sort((a, b) => (b.scrapedAt ?? '').compareTo(a.scrapedAt ?? ''));
+            }
+            // no likes field on YouTube model — 'likes' keeps API order
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 9 / 16,
+              ),
+              itemCount: sorted.length,
+              itemBuilder: (_, i) => _YouTubeTrendCard(video: sorted[i]),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _YouTubeTrendCard extends StatelessWidget {
+  const _YouTubeTrendCard({required this.video});
+  final YouTubeVideoModel video;
+
+  static const _ytRed = Color(0xFFFF0000);
+
+  ({String label, Color color}) _badge(int views) {
+    if (views >= 1000000) return (label: '🔥 Hot',    color: Colors.orange);
+    if (views >= 100000)  return (label: '📈 Rising', color: AppColors.success);
+    return                       (label: '➡ Steady',  color: AppColors.textMuted);
+  }
+
+  List<String> _parseTags(String? tags) {
+    if (tags == null || tags.isEmpty) return [];
+    return tags.split(RegExp(r'[,\s]+')).map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final thumbnailUrl = 'https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg';
+    final title = video.titre ?? 'YouTube Video';
+    final niche = video.niche ?? 'YouTube';
+    final badge = _badge(video.vues);
+    final tags = _parseTags(video.tags);
+
+    return GestureDetector(
+      onTap: () => launchUrl(
+        Uri.parse('https://www.youtube.com/watch?v=${video.videoId}'),
+        mode: LaunchMode.externalApplication,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: Colors.white.withValues(alpha: 0.05),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        clipBehavior: Clip.hardEdge,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.network(thumbnailUrl, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  color: _ytRed.withValues(alpha: 0.10),
+                  child: const Center(child: Icon(Icons.play_circle_outline_rounded, color: _ytRed, size: 40)),
+                )),
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Container(
+                height: 160,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                    colors: [Colors.black.withValues(alpha: 0.85), Colors.transparent],
+                  ),
+                ),
+              ),
+            ),
+            Center(
+              child: Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.4), shape: BoxShape.circle),
+                child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 26),
+              ),
+            ),
+            Positioned(
+              top: 8, right: 8,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(6)),
+                child: const Icon(Icons.open_in_new_rounded, size: 13, color: Colors.white),
+              ),
+            ),
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: badge.color.withValues(alpha: 0.20),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: badge.color.withValues(alpha: 0.50)),
+                      ),
+                      child: Text(badge.label,
+                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: badge.color)),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white, height: 1.3)),
+                    if (video.vues > 0) ...[
+                      const SizedBox(height: 6),
+                      Row(children: [
+                        const Icon(Icons.play_arrow_rounded, size: 12, color: Colors.white70),
+                        const SizedBox(width: 2),
+                        Text(_formatCount(video.vues), style: const TextStyle(fontSize: 10, color: Colors.white70)),
+                      ]),
+                    ],
+                    const SizedBox(height: 5),
+                    Wrap(
+                      spacing: 4, runSpacing: 3,
+                      children: (tags.isNotEmpty ? tags.take(2).toList() : [niche]).map((tag) => Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: _ytRed.withValues(alpha: 0.25),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(tag, style: const TextStyle(fontSize: 9, color: Colors.white)),
+                      )).toList(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Facebook Trends Section ──────────────────────────────────────────────────
+
+class _FacebookTrendsSection extends ConsumerWidget {
+  const _FacebookTrendsSection({required this.sort});
+  final String sort;
+
+  static const _fbBlue = Color(0xFF1877F2);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(_facebookTrendsReelsProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          const Icon(Icons.local_fire_department_rounded, color: _fbBlue, size: 18),
+          const SizedBox(width: 6),
+          Text('Trending Facebook Reels',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+        ]),
+        const SizedBox(height: 12),
+        async.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (_, __) => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(child: Text('Could not load reels', style: TextStyle(color: AppColors.textMuted))),
+          ),
+          data: (reels) {
+            if (reels.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(child: Text('No Facebook reels found', style: TextStyle(color: AppColors.textMuted))),
+              );
+            }
+            final sorted = [...reels];
+            if (sort == 'views') {
+              sorted.sort((a, b) => b.playCount.compareTo(a.playCount));
+            } else if (sort == 'recent') {
+              sorted.sort((a, b) => (b.createdAt ?? '').compareTo(a.createdAt ?? ''));
+            }
+            // no likes field on Facebook model — 'likes' keeps API order
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 9 / 16,
+              ),
+              itemCount: sorted.length,
+              itemBuilder: (_, i) => _FacebookTrendCard(reel: sorted[i]),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _FacebookTrendCard extends StatelessWidget {
+  const _FacebookTrendCard({required this.reel});
+  final FacebookReelModel reel;
+
+  static const _fbBlue = Color(0xFF1877F2);
+
+  ({String label, Color color}) _badge(int views) {
+    if (views >= 1000000) return (label: '🔥 Hot',    color: Colors.orange);
+    if (views >= 100000)  return (label: '📈 Rising', color: AppColors.success);
+    return                       (label: '➡ Steady',  color: AppColors.textMuted);
+  }
+
+  String _pageNameFromUrl(String? url) {
+    if (url == null || url.isEmpty) return 'Facebook';
+    final parts = url.replaceAll(RegExp(r'\?.*'), '').split('/').where((s) => s.isNotEmpty).toList();
+    return parts.isNotEmpty ? parts.last : 'Facebook';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasThumb = reel.thumbnailUrl != null && reel.thumbnailUrl!.isNotEmpty;
+    final hasUrl = reel.reelUrl != null && reel.reelUrl!.isNotEmpty;
+    final pageName = _pageNameFromUrl(reel.pageUrl);
+    final rawText = reel.text ?? '';
+    final title = rawText.isNotEmpty ? rawText : pageName;
+    final niche = (reel.niche != null && reel.niche!.isNotEmpty) ? reel.niche! : 'facebook';
+    final badge = _badge(reel.playCount);
+
+    return GestureDetector(
+      onTap: hasUrl
+          ? () => launchUrl(Uri.parse(reel.reelUrl!), mode: LaunchMode.externalApplication)
+          : () => context.push(
+                '/ai-generator?niche=${Uri.encodeComponent(niche)}&selectedVideoId=${reel.reelId}&platform=facebook'),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: Colors.white.withValues(alpha: 0.05),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        clipBehavior: Clip.hardEdge,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            hasThumb
+                ? Image.network(reel.thumbnailUrl!, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: _fbBlue.withValues(alpha: 0.10),
+                      child: const Center(child: Icon(Icons.play_circle_outline_rounded, color: _fbBlue, size: 40)),
+                    ))
+                : Container(
+                    color: _fbBlue.withValues(alpha: 0.10),
+                    child: const Center(child: Icon(Icons.play_circle_outline_rounded, color: _fbBlue, size: 40)),
+                  ),
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Container(
+                height: 160,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                    colors: [Colors.black.withValues(alpha: 0.85), Colors.transparent],
+                  ),
+                ),
+              ),
+            ),
+            Center(
+              child: Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.4), shape: BoxShape.circle),
+                child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 26),
+              ),
+            ),
+            if (hasUrl)
+              Positioned(
+                top: 8, right: 8,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(6)),
+                  child: const Icon(Icons.open_in_new_rounded, size: 13, color: Colors.white),
+                ),
+              ),
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (pageName.isNotEmpty)
+                      Text('@$pageName',
+                          style: const TextStyle(fontSize: 10, color: _fbBlue, fontWeight: FontWeight.w700),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: badge.color.withValues(alpha: 0.20),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: badge.color.withValues(alpha: 0.50)),
+                      ),
+                      child: Text(badge.label,
+                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: badge.color)),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white, height: 1.3)),
+                    if (reel.playCount > 0) ...[
+                      const SizedBox(height: 6),
+                      Row(children: [
+                        const Icon(Icons.play_arrow_rounded, size: 12, color: Colors.white70),
+                        const SizedBox(width: 2),
+                        Text(_formatCount(reel.playCount), style: const TextStyle(fontSize: 10, color: Colors.white70)),
+                      ]),
+                    ],
+                    const SizedBox(height: 5),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(color: _fbBlue.withValues(alpha: 0.25), borderRadius: BorderRadius.circular(4)),
+                      child: Text(niche, style: const TextStyle(fontSize: 9, color: Colors.white), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

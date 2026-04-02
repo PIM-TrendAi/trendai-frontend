@@ -18,6 +18,7 @@ class WorkflowState {
     this.sessionId,
     this.scriptContent,
     this.videoUrl,
+    this.platform,
     this.status = WorkflowStatus.idle,
     this.errorMessage,
   });
@@ -25,6 +26,7 @@ class WorkflowState {
   final String? sessionId;
   final String? scriptContent;
   final String? videoUrl;
+  final String? platform;
   final WorkflowStatus status;
   final String? errorMessage;
 
@@ -32,6 +34,7 @@ class WorkflowState {
     String? sessionId,
     String? scriptContent,
     String? videoUrl,
+    String? platform,
     WorkflowStatus? status,
     String? errorMessage,
   }) {
@@ -39,6 +42,7 @@ class WorkflowState {
       sessionId: sessionId ?? this.sessionId,
       scriptContent: scriptContent ?? this.scriptContent,
       videoUrl: videoUrl ?? this.videoUrl,
+      platform: platform ?? this.platform,
       status: status ?? this.status,
       errorMessage: errorMessage ?? this.errorMessage,
     );
@@ -64,8 +68,9 @@ class WorkflowNotifier extends StateNotifier<WorkflowState> {
     required String videoLikes,
     required String niche,
     required String userPrompt,
+    String platform = 'tiktok',
   }) async {
-    state = state.copyWith(status: WorkflowStatus.generatingScript);
+    state = state.copyWith(status: WorkflowStatus.generatingScript, platform: platform);
     try {
       final res = await _repo.startWorkflow(
         creatorId: creatorId,
@@ -77,6 +82,7 @@ class WorkflowNotifier extends StateNotifier<WorkflowState> {
         videoLikes: videoLikes,
         niche: niche,
         userPrompt: userPrompt,
+        platform: platform,
       );
       state = state.copyWith(
         sessionId: res.sessionId,

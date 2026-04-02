@@ -93,9 +93,10 @@ class _ScriptReviewScreenState extends ConsumerState<ScriptReviewScreen> {
 
     try {
       final dio = ref.read(dioProvider);
+      final platform = ref.read(workflowProvider).platform ?? 'tiktok';
       final res = await dio.get(
         '/n8n/sessions/latest/',
-        queryParameters: const {'platform': 'tiktok'},
+        queryParameters: {'platform': platform},
       );
       final data = res.data as Map<String, dynamic>;
       final sessionId =
@@ -335,8 +336,9 @@ class _ScriptReviewScreenState extends ConsumerState<ScriptReviewScreen> {
                                   await ref
                                       .read(workflowProvider.notifier)
                                       .approveScript();
-                                  if (context.mounted)
+                                  if (context.mounted) {
                                     context.go('/video-generation');
+                                  }
                                 },
                           isLoading:
                               state.status == WorkflowStatus.generatingVideo,
