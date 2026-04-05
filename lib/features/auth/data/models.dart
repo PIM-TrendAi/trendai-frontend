@@ -36,11 +36,11 @@ class UserModel {
     );
   }
 
-  UserModel copyWith({bool? tiktokConnected}) => UserModel(
+  UserModel copyWith({bool? tiktokConnected, List<String>? categories}) => UserModel(
         id: id,
         email: email,
         name: name,
-        categories: categories,
+        categories: categories ?? this.categories,
         plan: plan,
         accessToken: accessToken,
         refreshToken: refreshToken,

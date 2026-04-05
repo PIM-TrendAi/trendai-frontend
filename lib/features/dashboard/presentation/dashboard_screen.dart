@@ -8,6 +8,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
 import '../../auth/data/models.dart';
+import '../../auth/auth_repository.dart';
 import '../../trends/data/trends_provider.dart';
 
 class _DashboardVideo {
@@ -101,6 +102,46 @@ final _dashboardVideosProvider = FutureProvider<List<_DashboardVideo>>((ref) asy
     }
   }
   return results;
+});
+
+// ── Personalised recommendations from backend (Claude AI or rule-based fallback)
+class _Recommendation {
+  final String title;
+  final String hook;
+  final String bestTime;
+  final String niche;
+  final String platform;
+  final String videoId;
+  final String angle;
+
+  const _Recommendation({
+    required this.title,
+    required this.hook,
+    required this.bestTime,
+    required this.niche,
+    required this.platform,
+    required this.videoId,
+    required this.angle,
+  });
+
+  factory _Recommendation.fromJson(Map<String, dynamic> j) => _Recommendation(
+        title: j['title'] as String? ?? 'Trending Content',
+        hook: j['hook'] as String? ?? '',
+        bestTime: j['best_time'] as String? ?? '6:00 PM',
+        niche: j['niche'] as String? ?? '',
+        platform: j['platform'] as String? ?? 'tiktok',
+        videoId: j['video_id'] as String? ?? '',
+        angle: j['angle'] as String? ?? '',
+      );
+}
+
+final _recommendationsProvider = FutureProvider<List<_Recommendation>>((ref) async {
+  // Watch the user's niches — re-fetches automatically when they change
+  ref.watch(authNotifierProvider.select((u) => u.valueOrNull?.categories));
+  final dio = ref.read(dioProvider);
+  final res = await dio.get('/n8n/recommendations/');
+  final list = res.data as List? ?? [];
+  return list.map((e) => _Recommendation.fromJson(e as Map<String, dynamic>)).toList();
 });
 
 final _analyticsSummaryProvider = FutureProvider<Map<String, dynamic>>((ref) async {
@@ -206,22 +247,36 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             gradient: AppColors.gradientPrimary,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Text('Personalized', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                          child: const Text('AI Personalized', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
                         ),
                       ],
                     ),
                     const SizedBox(height: 14),
-                    const _RecommendationCard(
-                      title: 'How AI is Changing Everything',
-                      hook: "You won't believe what AI can do now...",
-                      bestTime: '6:00 PM',
-                    ),
-                    const SizedBox(height: 12),
-                    const _RecommendationCard(
-                      title: '5 Productivity Secrets',
-                      hook: 'Stop wasting time and start doing this...',
-                      bestTime: '12:00 PM',
-                    ),
+                    Consumer(builder: (context, ref, _) {
+                      final recsAsync = ref.watch(_recommendationsProvider);
+                      return recsAsync.when(
+                        data: (recs) => Column(
+                          children: [
+                            for (final rec in recs) ...[
+                              _RecommendationCard(rec: rec),
+                              const SizedBox(height: 12),
+                            ],
+                          ],
+                        ),
+                        loading: () => Column(
+                          children: List.generate(2, (_) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: GlassCard(
+                              child: SizedBox(
+                                height: 80,
+                                child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
+                              ),
+                            ),
+                          )),
+                        ),
+                        error: (_, __) => const SizedBox.shrink(),
+                      );
+                    }),
                     const SizedBox(height: 100),
                   ]),
                 ),
@@ -545,34 +600,69 @@ class _PlatformHeatmap extends StatelessWidget {
 
 // ── Recommendation Card
 class _RecommendationCard extends StatelessWidget {
-  const _RecommendationCard({required this.title, required this.hook, required this.bestTime});
-  final String title;
-  final String hook;
-  final String bestTime;
+  const _RecommendationCard({required this.rec});
+  final _Recommendation rec;
+
+  static const _platformIcons = {
+    'tiktok': Icons.music_note_rounded,
+    'instagram': Icons.camera_alt_rounded,
+    'youtube': Icons.play_circle_rounded,
+    'facebook': Icons.facebook_rounded,
+  };
 
   @override
   Widget build(BuildContext context) {
+    final icon = _platformIcons[rec.platform] ?? Icons.video_call_rounded;
+
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 6),
-          Text(hook, style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
+          Row(
+            children: [
+              Icon(icon, size: 14, color: AppColors.primary),
+              const SizedBox(width: 6),
+              if (rec.niche.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(rec.niche, style: const TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w600)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(rec.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(rec.hook, style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
+          if (rec.angle.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(rec.angle, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+          ],
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Best time: $bestTime', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+              Text('Best time: ${rec.bestTime}', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
               GestureDetector(
-                onTap: () => context.go('/ai-generator'),
+                onTap: () {
+                  final params = <String, String>{
+                    'niche': rec.niche,
+                    'platform': rec.platform,
+                    if (rec.videoId.isNotEmpty) 'selectedVideoId': rec.videoId,
+                  };
+                  final query = params.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&');
+                  context.push('/ai-generator?$query');
+                },
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
                     gradient: AppColors.gradientPrimary,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Text('Generate Script',
+                  child: const Text('1-Tap Generate',
                       style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12)),
                 ),
               ),

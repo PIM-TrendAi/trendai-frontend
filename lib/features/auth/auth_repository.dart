@@ -82,6 +82,11 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
       // Best-effort — store locally even if backend call fails
       await _storage.writeCreatorNiches(niches);
     }
+    // Update local state so watchers (e.g. recommendations) react immediately
+    final current = state.valueOrNull;
+    if (current != null) {
+      state = AsyncValue.data(current.copyWith(categories: niches));
+    }
   }
 
   Future<void> setTikTokConnected({bool connected = true}) async {

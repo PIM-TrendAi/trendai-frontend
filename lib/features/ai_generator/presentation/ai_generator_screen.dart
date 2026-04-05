@@ -30,6 +30,9 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
   String? _currentSessionId;
   String? _lastAutoApprovedScriptId;
 
+  // Platform selection
+  late Set<String> _selectedPlatforms;
+
   final styles = ['Funny', 'Informative', 'Dramatic', 'Casual'];
   final durations = ['30s', '60s', '90s'];
   final platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
@@ -37,6 +40,9 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
   @override
   void initState() {
     super.initState();
+    // Initialise platform selection from route param (default tiktok)
+    final initial = (widget.platform ?? 'tiktok').toLowerCase();
+    _selectedPlatforms = {initial};
     // Clear any stale session state from a previous platform
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(_videoGenerationStatusProvider.notifier).state = null;
@@ -101,6 +107,10 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
     setState(() => _loading = true);
     try {
       final dio = ref.read(dioProvider);
+      // Primary platform drives the n8n workflow
+      final primaryPlatform = _selectedPlatforms.isNotEmpty
+          ? _selectedPlatforms.first
+          : (widget.platform ?? 'tiktok');
 
       // Always use the n8n VIDEO workflow
       final niche = widget.niche ?? 'General';
@@ -110,7 +120,7 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
         'custom_prompt': "Générer une vidéo virale sur le sujet: $niche",
         'style': 'Informative',
         'duration': '60s',
-        'platform': widget.platform ?? 'tiktok',
+        'platform': primaryPlatform,
       });
 
       if (res.data['success'] == true) {
@@ -225,16 +235,27 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
     setState(() => _loading = true);
     try {
       final dio = ref.read(dioProvider);
-      await dio.post('/n8n/approve/video/', data: {
-        'session_id': status['session_id'],
-        'video_id': status['video_id'],
-        'approved': true,
-        'platform': widget.platform ?? 'tiktok',
-      });
+      final targets = _selectedPlatforms.isNotEmpty
+          ? _selectedPlatforms.toList()
+          : [widget.platform ?? 'tiktok'];
+
+      // Only TikTok and Instagram have live n8n publish webhooks
+      const _supported = {'tiktok', 'instagram'};
+
+      // Post to every supported selected platform
+      for (final platform in targets.where((p) => _supported.contains(p))) {
+        await dio.post('/n8n/approve/video/', data: {
+          'session_id': status['session_id'],
+          'video_id': status['video_id'],
+          'approved': true,
+          'platform': platform,
+        });
+      }
       _startPolling(); // Poll again to see completion
       if (mounted) {
+        final names = targets.map((p) => p[0].toUpperCase() + p.substring(1)).join(', ');
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Publication de la vidéo lancée ! 🚀')),
+          SnackBar(content: Text('Publication lancée sur $names ! 🚀')),
         );
       }
     } catch (e) {
@@ -295,6 +316,13 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // ── Platform selector ─────────────────────────────
+                      _PlatformSelector(
+                        selected: _selectedPlatforms,
+                        onChanged: (updated) =>
+                            setState(() => _selectedPlatforms = updated),
+                      ),
+                      const SizedBox(height: 20),
                       // Show generated script above the subject header
                       if (videoStatus != null &&
                           videoStatus['script_content'] != null) ...[
@@ -398,7 +426,6 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
                         ),
                       ),
 
-                      // Video Generation Status UI
                       if (videoStatus != null) ...[
                         const SizedBox(height: 24),
                         _VideoStatusCard(
@@ -406,6 +433,7 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
                           onPublish: _publishVideo,
                           onRefuse: _refuseVideo,
                           isLoading: _loading,
+                          selectedPlatforms: _selectedPlatforms,
                         ),
                       ],
                     ],
@@ -427,15 +455,29 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
 }
 
 class _VideoStatusCard extends StatelessWidget {
-  const _VideoStatusCard(
-      {required this.status,
-      required this.onPublish,
-      required this.onRefuse,
-      required this.isLoading});
+  const _VideoStatusCard({
+    required this.status,
+    required this.onPublish,
+    required this.onRefuse,
+    required this.isLoading,
+    this.selectedPlatforms = const {},
+  });
   final Map<String, dynamic> status;
   final VoidCallback onPublish;
   final VoidCallback onRefuse;
   final bool isLoading;
+  final Set<String> selectedPlatforms;
+
+  String _publishLabel() {
+    if (selectedPlatforms.isEmpty) return 'Publier 🚀';
+    if (selectedPlatforms.length == 4) {
+      return 'Publier sur toutes les plateformes 🚀';
+    }
+    final names = selectedPlatforms
+        .map((p) => p[0].toUpperCase() + p.substring(1))
+        .join(' + ');
+    return 'Publier sur $names 🚀';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -541,7 +583,7 @@ class _VideoStatusCard extends StatelessWidget {
             const SizedBox(height: 24),
             if (state == 'video_pending') ...[
               GradientButton(
-                label: 'Publier sur Instagram 🚀',
+                label: _publishLabel(),
                 onPressed: onPublish,
                 isLoading: isLoading,
               ),
@@ -603,53 +645,132 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({required this.label});
-  final String label;
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Text(label,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-    );
+// ── Platform multi-select chip row ──────────────────────────────────────────
+class _PlatformSelector extends StatelessWidget {
+  const _PlatformSelector({required this.selected, required this.onChanged});
+  final Set<String> selected;
+  final ValueChanged<Set<String>> onChanged;
+
+  static const _platforms = [
+    ('tiktok',    'TikTok',    Color(0xFFFF0050), Icons.music_note_rounded),
+    ('instagram', 'Instagram', Color(0xFFE1306C), Icons.camera_alt_rounded),
+    ('youtube',   'YouTube',   Color(0xFFFF0000), Icons.play_circle_fill_rounded),
+    ('facebook',  'Facebook',  Color(0xFF1877F2), Icons.facebook_rounded),
+  ];
+
+  void _toggle(String key) {
+    final next = Set<String>.from(selected);
+    if (key == 'all') {
+      if (next.length == _platforms.length) {
+        next.clear();
+      } else {
+        next.addAll(_platforms.map((p) => p.$1));
+      }
+    } else {
+      next.contains(key) ? next.remove(key) : next.add(key);
+    }
+    onChanged(next);
   }
-}
-
-class _ChipRow extends StatelessWidget {
-  const _ChipRow(
-      {required this.options, required this.selected, required this.onSelect});
-  final List<String> options;
-  final String selected;
-  final ValueChanged<String> onSelect;
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 10,
-      children: options.map((o) {
-        final active = o == selected;
-        return GestureDetector(
-          onTap: () => onSelect(o),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-            decoration: BoxDecoration(
-              gradient: active ? AppColors.gradientPrimary : null,
-              color: active ? null : Colors.white.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: Colors.white.withValues(alpha: active ? 0 : 0.12)),
+    final allSelected = selected.length == _platforms.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.send_rounded, size: 15, color: AppColors.primary),
+            const SizedBox(width: 8),
+            const Text(
+              'PUBLIER SUR',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+                color: AppColors.primary,
+              ),
             ),
-            child: Text(o,
-                style: TextStyle(
-                  color: active ? Colors.white : AppColors.textMuted,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                )),
-          ),
-        );
-      }).toList(),
+            const Spacer(),
+            // "All" toggle
+            GestureDetector(
+              onTap: () => _toggle('all'),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  gradient: allSelected ? AppColors.gradientPrimary : null,
+                  color: allSelected ? null : Colors.white.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: allSelected
+                        ? Colors.transparent
+                        : Colors.white.withValues(alpha: 0.15),
+                  ),
+                ),
+                child: Text(
+                  'Tout',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: allSelected ? Colors.white : AppColors.textMuted,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: _platforms.map((meta) {
+            final key = meta.$1;
+            final label = meta.$2;
+            final color = meta.$3;
+            final icon = meta.$4;
+            final active = selected.contains(key);
+            return GestureDetector(
+              onTap: () => _toggle(key),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                decoration: BoxDecoration(
+                  color: active
+                      ? color.withValues(alpha: 0.18)
+                      : Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: active
+                        ? color.withValues(alpha: 0.7)
+                        : Colors.white.withValues(alpha: 0.1),
+                    width: active ? 1.5 : 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 16, color: active ? color : Colors.white38),
+                    const SizedBox(width: 7),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: active ? color : AppColors.textMuted,
+                      ),
+                    ),
+                    if (active) ...[
+                      const SizedBox(width: 6),
+                      Icon(Icons.check_circle_rounded, size: 14, color: color),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 }
