@@ -135,11 +135,17 @@ class _Recommendation {
       );
 }
 
-final _recommendationsProvider = FutureProvider<List<_Recommendation>>((ref) async {
-  // Watch the user's niches — re-fetches automatically when they change
-  ref.watch(authNotifierProvider.select((u) => u.valueOrNull?.categories));
+// autoDispose = re-fetches every time the screen is opened fresh
+final _recommendationsProvider = FutureProvider.autoDispose<List<_Recommendation>>((ref) async {
+  // Watch categories — re-fetches automatically when niche changes
+  final categories = ref.watch(authNotifierProvider.select((u) => u.valueOrNull?.categories));
   final dio = ref.read(dioProvider);
-  final res = await dio.get('/n8n/recommendations/');
+  // Pass ALL selected niches as comma-separated so backend covers each one
+  final niches = categories?.isNotEmpty == true ? categories! : <String>[];
+  final res = await dio.get(
+    '/n8n/recommendations/',
+    queryParameters: niches.isNotEmpty ? {'niche': niches.join(',')} : null,
+  );
   final list = res.data as List? ?? [];
   return list.map((e) => _Recommendation.fromJson(e as Map<String, dynamic>)).toList();
 });
@@ -264,8 +270,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           ],
                         ),
                         loading: () => Column(
-                          children: List.generate(2, (_) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
+                          children: List.generate(2, (_) => const Padding(
+                            padding: EdgeInsets.only(bottom: 12),
                             child: GlassCard(
                               child: SizedBox(
                                 height: 80,
