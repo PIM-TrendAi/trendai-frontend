@@ -162,7 +162,36 @@ class DashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  // Ensures the startup Facebook scrape fires only once per app session.
+  static bool _facebookScrapedThisSession = false;
+
   final _scrollCtrl = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_facebookScrapedThisSession) {
+      _facebookScrapedThisSession = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _triggerFacebookStartupScrape());
+    }
+  }
+
+  /// Fire-and-forget: scrape Facebook once when the app opens so the
+  /// trend picker has fresh data without burning Apify on every niche switch.
+  Future<void> _triggerFacebookStartupScrape() async {
+    try {
+      final user = ref.read(authNotifierProvider).valueOrNull;
+      final niche = (user?.categories.isNotEmpty == true)
+          ? user!.categories.first
+          : 'general';
+      await ref.read(dioProvider).post(
+        '/n8n/trigger-scrape/',
+        data: {'platform': 'facebook', 'niche': niche},
+      );
+    } catch (_) {
+      // Ignore — background task, don't affect UI
+    }
+  }
 
   @override
   void dispose() {

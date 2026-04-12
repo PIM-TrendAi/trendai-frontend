@@ -36,8 +36,14 @@ final _instagramStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async
   return res.data as Map<String, dynamic>;
 });
 
+final _facebookStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  final res = await ref.read(dioProvider).get('/analytics/facebook/');
+  return res.data as Map<String, dynamic>;
+});
+
 // ── WebSocket config
 String get _wsBase => '${ServerConfig.wsBase}/ws/tiktok-stats/';
+String get _fbWsBase => '${ServerConfig.wsBase}/ws/facebook-stats/';
 const _reconnectDelay = Duration(seconds: 5);
 
 // ─────────────────────────────────────────────
@@ -51,7 +57,7 @@ class AnalyticsScreen extends ConsumerStatefulWidget {
 }
 
 class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
-  // WebSocket state
+  // TikTok WebSocket state
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _sub;
   Timer? _reconnectTimer;
@@ -60,10 +66,20 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   bool _wsLoading = true;
   String? _wsError;
 
+  // Facebook WebSocket state
+  WebSocketChannel? _fbChannel;
+  StreamSubscription<dynamic>? _fbSub;
+  Timer? _fbReconnectTimer;
+  List<Map<String, dynamic>> _fbPosts = [];
+  bool _fbWsConnected = false;
+  bool _fbWsLoading = true;
+  String? _fbWsError;
+
   @override
   void initState() {
     super.initState();
     _connectWs();
+    _connectFbWs();
   }
 
   final _scrollCtrl = ScrollController();
@@ -74,6 +90,9 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     _reconnectTimer?.cancel();
     _sub?.cancel();
     _channel?.sink.close();
+    _fbReconnectTimer?.cancel();
+    _fbSub?.cancel();
+    _fbChannel?.sink.close();
     super.dispose();
   }
 
@@ -123,6 +142,52 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     _reconnectTimer = Timer(_reconnectDelay, _connectWs);
   }
 
+  // ── Facebook WebSocket
+  Future<void> _connectFbWs() async {
+    final jwt = await ref.read(secureStorageProvider).readAccessToken();
+    if (!mounted) return;
+    if (jwt == null) {
+      setState(() { _fbWsLoading = false; _fbWsError = 'not_authenticated'; });
+      return;
+    }
+    final uri = Uri.parse('$_fbWsBase?token=$jwt');
+    _fbChannel = WebSocketChannel.connect(uri);
+    setState(() { _fbWsConnected = true; _fbWsLoading = _fbPosts.isEmpty; _fbWsError = null; });
+
+    _fbSub?.cancel();
+    _fbSub = _fbChannel!.stream.listen(
+      _onFbWsMessage,
+      onError: (_) => _onFbWsDisconnected(),
+      onDone: _onFbWsDisconnected,
+      cancelOnError: true,
+    );
+  }
+
+  void _onFbWsMessage(dynamic raw) {
+    if (!mounted) return;
+    final Map<String, dynamic> data;
+    try { data = jsonDecode(raw as String) as Map<String, dynamic>; }
+    catch (_) { return; }
+
+    if (data.containsKey('error')) {
+      setState(() { _fbWsError = data['error'] as String; _fbWsLoading = false; _fbWsConnected = false; });
+      return;
+    }
+    setState(() {
+      _fbPosts = List<Map<String, dynamic>>.from(data['posts'] as List? ?? []);
+      _fbWsLoading = false;
+      _fbWsConnected = true;
+      _fbWsError = null;
+    });
+  }
+
+  void _onFbWsDisconnected() {
+    if (!mounted) return;
+    setState(() { _fbWsConnected = false; _fbWsLoading = false; });
+    _fbReconnectTimer?.cancel();
+    _fbReconnectTimer = Timer(_reconnectDelay, _connectFbWs);
+  }
+
   // ── Build
   @override
   Widget build(BuildContext context) {
@@ -130,6 +195,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     final engagementAsync = ref.watch(_engagementProvider);
     final platformAsync = ref.watch(_platformProvider);
     final instagramAsync = ref.watch(_instagramStatsProvider);
+    final facebookAsync = ref.watch(_facebookStatsProvider);
 
     return Scaffold(
       body: Stack(
@@ -159,6 +225,21 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                       // ── Instagram Stats section (REST API)
                       instagramAsync.when(
                         data: (igData) => _InstagramStatsSection(data: igData),
+                        loading: () => const SizedBox.shrink(),
+                        error: (_, __) => const SizedBox.shrink(),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // ── Facebook Live Stats section (WebSocket + REST)
+                      facebookAsync.when(
+                        data: (fbData) => _FacebookLiveSection(
+                          data: fbData,
+                          posts: _fbPosts,
+                          connected: _fbWsConnected,
+                          loading: _fbWsLoading,
+                          error: _fbWsError,
+                          onRetry: _connectFbWs,
+                        ),
                         loading: () => const SizedBox.shrink(),
                         error: (_, __) => const SizedBox.shrink(),
                       ),
@@ -793,6 +874,234 @@ class _IgMediaCard extends StatelessWidget {
   );
 
   Widget _igChip(IconData icon, String value, String label, {Color color = AppColors.textMuted}) =>
+      Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 3),
+        Text('$value $label', style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500)),
+      ]);
+
+  String _fmt(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return n.toString();
+  }
+}
+
+// ─────────────────────────────────────────────
+// Facebook Live Stats Section
+// ─────────────────────────────────────────────
+const _facebookColor = Color(0xFF1877F2);
+
+class _FacebookLiveSection extends StatelessWidget {
+  const _FacebookLiveSection({
+    required this.data,
+    required this.posts,
+    required this.connected,
+    required this.loading,
+    required this.error,
+    required this.onRetry,
+  });
+
+  final Map<String, dynamic> data;
+  final List<Map<String, dynamic>> posts;
+  final bool connected;
+  final bool loading;
+  final String? error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final restConnected = data['connected'] == true;
+    if (!restConnected && posts.isEmpty && error == null) return const SizedBox.shrink();
+
+    final summary = data['summary'] as Map<String, dynamic>? ?? {};
+    final profile = data['profile'] as Map<String, dynamic>?;
+    final displayPosts = posts.isNotEmpty
+        ? posts
+        : List<Map<String, dynamic>>.from(data['posts'] as List? ?? []);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 32, height: 32,
+              decoration: BoxDecoration(
+                color: _facebookColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.facebook_rounded, color: _facebookColor, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Facebook Stats',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                  if (profile != null && profile['name'] != null)
+                    Text(profile['name'] as String,
+                        style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                ],
+              ),
+            ),
+            _PulseIndicator(connected: connected),
+          ],
+        ),
+        const SizedBox(height: 14),
+
+        if (restConnected) ...[
+          Row(children: [
+            _FbMiniStat(icon: Icons.people_rounded,   value: _fmtN(summary['fans'] as int? ?? 0),           label: 'Fans'),
+            _FbMiniStat(icon: Icons.favorite_rounded, value: _fmtN(summary['total_likes'] as int? ?? 0),    label: 'Likes'),
+            _FbMiniStat(icon: Icons.comment_rounded,  value: _fmtN(summary['total_comments'] as int? ?? 0), label: 'Comments'),
+            _FbMiniStat(icon: Icons.share_rounded,    value: _fmtN(summary['total_shares'] as int? ?? 0),   label: 'Shares'),
+          ]),
+          const SizedBox(height: 14),
+        ],
+
+        if (loading && displayPosts.isEmpty)
+          const Center(child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: CircularProgressIndicator(),
+          ))
+        else if (error != null && displayPosts.isEmpty)
+          GlassCard(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(_errorLabel(error!),
+                      style: const TextStyle(fontSize: 12, color: AppColors.textMuted))),
+                  TextButton(onPressed: onRetry, child: const Text('Retry')),
+                ],
+              ),
+            ),
+          )
+        else if (displayPosts.isEmpty)
+          const GlassCard(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(child: Text('No posts found on your Facebook page',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 13))),
+            ),
+          )
+        else
+          ...displayPosts.map((p) => _FbPostCard(post: p)),
+      ],
+    );
+  }
+
+  String _errorLabel(String code) {
+    switch (code) {
+      case 'facebook_token_expired': return 'Facebook session expired — reconnect in Profile';
+      case 'facebook_not_connected': return 'Facebook not connected — go to Profile to connect';
+      default: return 'Could not reach server — retrying…';
+    }
+  }
+
+  static String _fmtN(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return n.toString();
+  }
+}
+
+class _FbMiniStat extends StatelessWidget {
+  const _FbMiniStat({required this.icon, required this.value, required this.label});
+  final IconData icon;
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GlassCard(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        child: Column(children: [
+          Icon(icon, size: 16, color: _facebookColor),
+          const SizedBox(height: 6),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+          const SizedBox(height: 2),
+          Text(label, style: const TextStyle(fontSize: 9, color: AppColors.textMuted)),
+        ]),
+      ),
+    );
+  }
+}
+
+class _FbPostCard extends StatelessWidget {
+  const _FbPostCard({required this.post});
+  final Map<String, dynamic> post;
+
+  @override
+  Widget build(BuildContext context) {
+    final message     = post['message']      as String? ?? '';
+    final likes       = post['likes']        as int?    ?? 0;
+    final comments    = post['comments']     as int?    ?? 0;
+    final shares      = post['shares']       as int?    ?? 0;
+    final impressions = post['impressions']  as int?    ?? 0;
+    final thumbnail   = post['thumbnail_url'] as String? ?? '';
+    final permalink   = post['permalink']    as String? ?? '';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: GestureDetector(
+        onTap: permalink.isNotEmpty
+            ? () => launchUrl(Uri.parse(permalink), mode: LaunchMode.externalApplication)
+            : null,
+        child: GlassCard(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: thumbnail.isNotEmpty
+                    ? Image.network(thumbnail, width: 72, height: 72, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _fbThumb())
+                    : _fbThumb(),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      message.isNotEmpty ? message : 'Facebook Post',
+                      maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                    ),
+                    const SizedBox(height: 7),
+                    Wrap(spacing: 10, runSpacing: 5, children: [
+                      _fbChip(Icons.favorite_rounded,   _fmt(likes),        'likes',    color: _facebookColor),
+                      _fbChip(Icons.comment_rounded,    _fmt(comments),     'comments'),
+                      _fbChip(Icons.share_rounded,      _fmt(shares),       'shares'),
+                      if (impressions > 0)
+                        _fbChip(Icons.visibility_rounded, _fmt(impressions), 'reach'),
+                    ]),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _fbThumb() => Container(
+    width: 72, height: 72,
+    decoration: BoxDecoration(
+      color: _facebookColor.withValues(alpha: 0.15),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: const Icon(Icons.facebook_rounded, color: _facebookColor, size: 28),
+  );
+
+  Widget _fbChip(IconData icon, String value, String label, {Color color = AppColors.textMuted}) =>
       Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 12, color: color),
         const SizedBox(width: 3),

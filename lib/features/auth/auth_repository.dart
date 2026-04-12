@@ -30,11 +30,12 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
     if (profile['id'] == null) return null;
 
     final tiktok = await _storage.isTikTokConnected();
+    final niches = await _storage.readCreatorNiches();
     return UserModel(
       id: int.tryParse(profile['id']!) ?? 0,
       email: profile['email'] ?? '',
       name: profile['name'] ?? '',
-      categories: const [],
+      categories: niches,
       plan: 'free',
       accessToken: token,
       refreshToken: await _storage.readRefreshToken() ?? '',

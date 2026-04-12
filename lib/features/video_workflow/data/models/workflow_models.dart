@@ -185,17 +185,20 @@ class VideoStatusResponse {
     required this.sessionId,
     required this.status,
     this.videoUrl,
+    this.isFallback = false,
   });
 
   final String sessionId;
   final String status; // 'generating' | 'ready' | 'error'
   final String? videoUrl;
+  final bool isFallback;
 
   factory VideoStatusResponse.fromJson(Map<String, dynamic> json) {
     return VideoStatusResponse(
       sessionId: json['sessionId'] as String? ?? '',
       status: json['status'] as String? ?? 'generating',
       videoUrl: json['videoUrl'] as String?,
+      isFallback: json['isFallback'] as bool? ?? false,
     );
   }
 }

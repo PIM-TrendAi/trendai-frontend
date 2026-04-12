@@ -8,6 +8,7 @@ import '../../../../core/storage/secure_storage.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
 import '../../../auth/data/models.dart';
+import '../../../auth/auth_repository.dart';
 import '../../data/models/workflow_models.dart';
 import '../../data/n8n_repository.dart';
 import '../providers/workflow_provider.dart';
@@ -75,8 +76,10 @@ final _trendingVideosProvider =
   }
 
   if (platform == 'facebook') {
-    final res = await dio.get('/trends/reels/');
-    final list = res.data['results'] as List? ?? res.data as List;
+    // Pass the user's niche so the backend returns only matching reels
+    final nicheParam = niche != null && niche.isNotEmpty ? niche.toLowerCase() : 'general';
+    final res = await dio.get('/n8n/facebook_reels/', queryParameters: {'niche': nicheParam, 'limit': 20});
+    final list = res.data is List ? res.data as List : (res.data['results'] as List? ?? []);
     return list.cast<Map<String, dynamic>>().map((json) {
       final reel = FacebookReelModel.fromJson(json);
       final pageName = _pageNameFromUrl(reel.pageUrl);
@@ -87,7 +90,7 @@ final _trendingVideosProvider =
         thumbnailUrl: reel.thumbnailUrl ?? '',
         views: _formatViewCount(reel.playCount),
         likes: '',
-        niche: reel.niche ?? 'Facebook',
+        niche: reel.niche ?? nicheParam,
         hashtags: reel.niche != null ? [reel.niche!] : [],
         tiktokUrl: reel.reelUrl ?? '',
       );
@@ -133,20 +136,26 @@ class VideoPickerScreen extends ConsumerStatefulWidget {
 class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
   final _promptCtrl = TextEditingController();
   TrendingVideoModel? _selectedVideo;
-  String? _niche;
   String _selectedPlatform = 'tiktok';
+  String? _selectedNiche;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadNiche();
-  }
-
-  Future<void> _loadNiche() async {
-    final niches = await ref.read(secureStorageProvider).readCreatorNiches();
-    if (niches.isNotEmpty && mounted) {
-      setState(() => _niche = niches.first);
-    }
+  /// Triggers a fresh niche-based Facebook scrape via n8n, then refreshes the feed.
+  Future<void> _triggerFacebookScrape() async {
+    final dio = ref.read(dioProvider);
+    final categories = ref.read(authNotifierProvider).valueOrNull?.categories;
+    final fallbackNiche = (categories != null && categories.isNotEmpty) ? categories.first : 'general';
+    final niche = _selectedNiche ?? fallbackNiche;
+    try {
+      await dio.post('/n8n/trigger-scrape/', data: {'platform': 'facebook', 'niche': niche});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Scraping Facebook "$niche" reels... 🔄')),
+        );
+        // Wait a moment then refresh the provider
+        await Future.delayed(const Duration(seconds: 3));
+        if (mounted) ref.invalidate(_trendingVideosProvider((niche, 'facebook')));
+      }
+    } catch (_) {}
   }
 
   @override
@@ -174,7 +183,9 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
     // the platform-specific workflow via Django → n8n.
     if (_selectedPlatform != 'tiktok') {
       if (!mounted) return;
-      final niche = _niche ?? video.niche;
+      final categories = ref.read(authNotifierProvider).valueOrNull?.categories;
+      final fallbackNiche = (categories != null && categories.isNotEmpty) ? categories.first : 'general';
+      final niche = _selectedNiche ?? fallbackNiche;
       context.push(
         '/ai-generator?niche=${Uri.encodeComponent(niche)}'
         '&selectedVideoId=${video.videoId}'
@@ -195,7 +206,7 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
           videoHashtags: video.hashtags,
           videoViews: video.views,
           videoLikes: video.likes,
-          niche: _niche ?? video.niche,
+          niche: _selectedNiche ?? ref.read(authNotifierProvider).valueOrNull?.categories.firstOrNull ?? video.niche,
           userPrompt: _promptCtrl.text.trim(),
           platform: _selectedPlatform,
         );
@@ -216,7 +227,10 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final videosAsync = ref.watch(_trendingVideosProvider((_niche, _selectedPlatform)));
+    final categories = ref.watch(authNotifierProvider).valueOrNull?.categories;
+    final fallbackNiche = (categories != null && categories.isNotEmpty) ? categories.first : 'general';
+    final currentNiche = _selectedNiche ?? fallbackNiche;
+    final videosAsync = ref.watch(_trendingVideosProvider((currentNiche, _selectedPlatform)));
     final workflowState = ref.watch(workflowProvider);
     final isLoading = workflowState.status == WorkflowStatus.generatingScript;
 
@@ -299,10 +313,12 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
                         brandColor: const Color(0xFF1877F2),
                         icon: Icons.facebook_rounded,
                         isSelected: _selectedPlatform == 'facebook',
-                        onTap: () => setState(() {
-                          _selectedPlatform = 'facebook';
-                          _selectedVideo = null;
-                        }),
+                        onTap: () {
+                          setState(() {
+                            _selectedPlatform = 'facebook';
+                            _selectedVideo = null;
+                          });
+                        },
                       ),
                     ],
                   ),
@@ -325,7 +341,7 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
                         const SizedBox(height: 8),
                         TextButton(
                           onPressed: () =>
-                              ref.invalidate(_trendingVideosProvider((_niche, _selectedPlatform))),
+                              ref.invalidate(_trendingVideosProvider((currentNiche, _selectedPlatform))),
                           child: const Text('Retry'),
                         ),
                       ],
@@ -333,27 +349,43 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
                   ),
                   data: (videos) {
                     if (videos.isEmpty) {
-                      return const Center(
+                      return Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.hourglass_top_rounded,
+                            const Icon(Icons.hourglass_top_rounded,
                                 color: AppColors.textMuted, size: 48),
-                            SizedBox(height: 12),
+                            const SizedBox(height: 12),
                             Text(
-                              'Coming soon',
-                              style: TextStyle(
+                              _selectedPlatform == 'facebook'
+                                  ? 'No reels yet for "$currentNiche"'
+                                  : 'Coming soon',
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
-                            SizedBox(height: 6),
+                            const SizedBox(height: 6),
                             Text(
-                              'This platform is being integrated.\nCheck back soon!',
+                              _selectedPlatform == 'facebook'
+                                  ? 'Tap below to scrape fresh reels for your niche.'
+                                  : 'This platform is being integrated.\nCheck back soon!',
                               textAlign: TextAlign.center,
-                              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                              style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
                             ),
+                            if (_selectedPlatform == 'facebook') ...[
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                onPressed: _triggerFacebookScrape,
+                                icon: const Icon(Icons.refresh_rounded, size: 18),
+                                label: const Text('Scrape Now'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF1877F2),
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       );

@@ -239,11 +239,11 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
           ? _selectedPlatforms.toList()
           : [widget.platform ?? 'tiktok'];
 
-      // Only TikTok and Instagram have live n8n publish webhooks
-      const _supported = {'tiktok', 'instagram'};
+      // Platforms with live n8n publish webhooks
+      const supported = {'tiktok', 'instagram', 'facebook'};
 
       // Post to every supported selected platform
-      for (final platform in targets.where((p) => _supported.contains(p))) {
+      for (final platform in targets.where((p) => supported.contains(p))) {
         await dio.post('/n8n/approve/video/', data: {
           'session_id': status['session_id'],
           'video_id': status['video_id'],

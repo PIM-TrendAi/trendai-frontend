@@ -21,7 +21,8 @@ class _VideoGenerationScreenState
     extends ConsumerState<VideoGenerationScreen> {
   Timer? _timer;
   int _elapsedSeconds = 0;
-  static const _maxWaitSeconds = 120; // 2 minutes then show error
+
+  static const _maxWaitSeconds = 300; // 5 minutes hard timeout
 
   @override
   void initState() {
@@ -32,14 +33,16 @@ class _VideoGenerationScreenState
   void _startPolling() {
     _timer = Timer.periodic(const Duration(seconds: 5), (_) async {
       if (!mounted) return;
-      _elapsedSeconds += 5;
+      setState(() => _elapsedSeconds += 5);
+
       if (_elapsedSeconds >= _maxWaitSeconds) {
         _timer?.cancel();
-        setState(() {}); // trigger error UI rebuild
         return;
       }
+
       await ref.read(workflowProvider.notifier).pollVideoStatus();
       if (!mounted) return;
+
       final status = ref.read(workflowProvider).status;
       if (status == WorkflowStatus.pendingVideoReview) {
         _timer?.cancel();
@@ -66,7 +69,9 @@ class _VideoGenerationScreenState
             child: Center(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: timedOut ? _buildErrorState(context) : _buildLoadingState(context),
+                child: timedOut
+                    ? _buildErrorState(context)
+                    : _buildLoadingState(context),
               ),
             ),
           ),
@@ -79,31 +84,7 @@ class _VideoGenerationScreenState
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 120,
-          height: 120,
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: AppColors.gradientPrimary,
-          ),
-          child: const Icon(
-            Icons.movie_creation_outlined,
-            color: Colors.white,
-            size: 56,
-          ),
-        )
-            .animate(onPlay: (c) => c.repeat())
-            .scaleXY(
-                begin: 1.0,
-                end: 1.08,
-                duration: const Duration(seconds: 1),
-                curve: Curves.easeInOut)
-            .then()
-            .scaleXY(
-                begin: 1.08,
-                end: 1.0,
-                duration: const Duration(seconds: 1),
-                curve: Curves.easeInOut),
+        _pulsingIcon(Icons.movie_creation_outlined, AppColors.gradientPrimary),
         const SizedBox(height: 36),
         Text(
           'Generating your video',
@@ -120,26 +101,7 @@ class _VideoGenerationScreenState
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 40),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(3, (i) {
-            return Container(
-              width: 10,
-              height: 10,
-              margin: const EdgeInsets.symmetric(horizontal: 5),
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.primary,
-              ),
-            )
-                .animate(
-                    delay: Duration(milliseconds: i * 300),
-                    onPlay: (c) => c.repeat())
-                .fadeIn(duration: const Duration(milliseconds: 400))
-                .then()
-                .fadeOut(duration: const Duration(milliseconds: 400));
-          }),
-        ),
+        _bouncingDots(),
       ],
     );
   }
@@ -154,17 +116,20 @@ class _VideoGenerationScreenState
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: Colors.orange.withValues(alpha: 0.15),
-            border: Border.all(color: Colors.orange.withValues(alpha: 0.4), width: 2),
+            border: Border.all(
+                color: Colors.orange.withValues(alpha: 0.4), width: 2),
           ),
           child: const Icon(
             Icons.warning_amber_rounded,
             color: Colors.orange,
             size: 56,
           ),
-        ).animate().scale(duration: const Duration(milliseconds: 400), curve: Curves.elasticOut),
+        ).animate().scale(
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.elasticOut),
         const SizedBox(height: 36),
         Text(
-          'Video generation unavailable',
+          'Still working on it…',
           style: Theme.of(context)
               .textTheme
               .headlineSmall
@@ -177,34 +142,82 @@ class _VideoGenerationScreenState
           decoration: BoxDecoration(
             color: Colors.orange.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.orange.withValues(alpha: 0.25)),
+            border:
+                Border.all(color: Colors.orange.withValues(alpha: 0.25)),
           ),
           child: const Text(
-            'The AI video service could not be reached. This usually means the service is unavailable or requires a paid plan.',
+            'The video is taking longer than expected. This can happen when the stock video service is slow. Tap "Keep waiting" to continue polling, or go back and try a different prompt.',
             style: TextStyle(color: AppColors.textMuted, height: 1.6),
             textAlign: TextAlign.center,
           ),
         ),
         const SizedBox(height: 32),
         GradientButton(
-          label: 'Go Back to Script',
+          label: 'Keep waiting',
           onPressed: () {
-            ref.read(workflowProvider.notifier).reset();
-            context.go('/video-picker');
+            setState(() => _elapsedSeconds = 0);
+            _startPolling();
           },
         ),
         const SizedBox(height: 12),
         TextButton(
           onPressed: () {
-            setState(() => _elapsedSeconds = 0);
-            _startPolling();
+            ref.read(workflowProvider.notifier).reset();
+            context.go('/video-picker');
           },
           child: const Text(
-            'Try again anyway',
+            'Go back and try again',
             style: TextStyle(color: AppColors.textMuted),
           ),
         ),
       ],
     ).animate().fadeIn(duration: const Duration(milliseconds: 400));
+  }
+
+  Widget _pulsingIcon(IconData icon, Gradient gradient) {
+    return Container(
+      width: 120,
+      height: 120,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: gradient,
+      ),
+      child: Icon(icon, color: Colors.white, size: 56),
+    )
+        .animate(onPlay: (c) => c.repeat())
+        .scaleXY(
+            begin: 1.0,
+            end: 1.08,
+            duration: const Duration(seconds: 1),
+            curve: Curves.easeInOut)
+        .then()
+        .scaleXY(
+            begin: 1.08,
+            end: 1.0,
+            duration: const Duration(seconds: 1),
+            curve: Curves.easeInOut);
+  }
+
+  Widget _bouncingDots() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(3, (i) {
+        return Container(
+          width: 10,
+          height: 10,
+          margin: const EdgeInsets.symmetric(horizontal: 5),
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColors.primary,
+          ),
+        )
+            .animate(
+                delay: Duration(milliseconds: i * 300),
+                onPlay: (c) => c.repeat())
+            .fadeIn(duration: const Duration(milliseconds: 400))
+            .then()
+            .fadeOut(duration: const Duration(milliseconds: 400));
+      }),
+    );
   }
 }

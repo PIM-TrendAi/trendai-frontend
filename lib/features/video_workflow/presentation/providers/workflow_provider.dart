@@ -21,6 +21,7 @@ class WorkflowState {
     this.platform,
     this.status = WorkflowStatus.idle,
     this.errorMessage,
+    this.isFallback = false,
   });
 
   final String? sessionId;
@@ -29,6 +30,7 @@ class WorkflowState {
   final String? platform;
   final WorkflowStatus status;
   final String? errorMessage;
+  final bool isFallback;
 
   WorkflowState copyWith({
     String? sessionId,
@@ -37,6 +39,7 @@ class WorkflowState {
     String? platform,
     WorkflowStatus? status,
     String? errorMessage,
+    bool? isFallback,
   }) {
     return WorkflowState(
       sessionId: sessionId ?? this.sessionId,
@@ -45,6 +48,7 @@ class WorkflowState {
       platform: platform ?? this.platform,
       status: status ?? this.status,
       errorMessage: errorMessage ?? this.errorMessage,
+      isFallback: isFallback ?? this.isFallback,
     );
   }
 }
@@ -138,8 +142,14 @@ class WorkflowNotifier extends StateNotifier<WorkflowState> {
       if (res.status == 'ready' && res.videoUrl != null) {
         state = state.copyWith(
           videoUrl: res.videoUrl,
+          isFallback: res.isFallback,
           status: WorkflowStatus.pendingVideoReview,
         );
+      } else {
+        // Keep isFallback updated even while still generating
+        if (res.isFallback) {
+          state = state.copyWith(isFallback: true);
+        }
       }
     } catch (_) {
       // polling errors are silent — the screen handles timeout

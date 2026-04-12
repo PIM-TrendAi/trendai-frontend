@@ -23,8 +23,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   bool _notifications = true;
   bool _tiktokLoading = false;
   bool _instagramLoading = false;
+  bool _facebookLoading = false;
   bool _tiktokConnected = false;
   bool _instagramConnected = false;
+  bool _facebookConnected = false;
   final _scrollCtrl = ScrollController();
 
   @override
@@ -33,6 +35,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     WidgetsBinding.instance.addObserver(this);
     _checkTikTokStatus();
     _checkInstagramStatus();
+    _checkFacebookStatus();
   }
 
   @override
@@ -41,6 +44,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     if (state == AppLifecycleState.resumed) {
       _checkTikTokStatus();
       _checkInstagramStatus();
+      _checkFacebookStatus();
     }
   }
 
@@ -75,6 +79,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       final dio = ref.read(dioProvider);
       final res = await dio.get('/n8n/platforms/instagram/status/');
       if (mounted) setState(() => _instagramConnected = res.data['connected'] == true);
+    } catch (_) {}
+  }
+
+  Future<void> _checkFacebookStatus() async {
+    try {
+      final dio = ref.read(dioProvider);
+      final res = await dio.get('/platforms/facebook/status/');
+      if (mounted) setState(() => _facebookConnected = res.data['connected'] == true);
     } catch (_) {}
   }
 
@@ -303,6 +315,58 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                                 }
                               } finally {
                                 if (mounted) setState(() => _instagramLoading = false);
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          _PlatformCard(
+                            name: 'Facebook',
+                            isConnected: _facebookConnected,
+                            iconColor: const Color(0xFF1877F2),
+                            iconData: Icons.facebook_rounded,
+                            isPrimaryAction: !_facebookConnected,
+                            isLoading: _facebookLoading,
+                            onAction: () async {
+                              if (_facebookLoading) return;
+                              setState(() => _facebookLoading = true);
+                              try {
+                                final dio = ref.read(dioProvider);
+                                if (_facebookConnected) {
+                                  await dio.post('/platforms/facebook/disconnect/');
+                                  setState(() => _facebookConnected = false);
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Facebook disconnected.')),
+                                    );
+                                  }
+                                } else {
+                                  // ── OAuth flow: get auth URL then open in browser
+                                  final res = await dio.get('/platforms/facebook/oauth/start/');
+                                  final authUrl = res.data['auth_url'] as String?;
+                                  if (authUrl == null) throw Exception('No auth URL returned');
+                                  final uri = Uri.parse(authUrl);
+                                  if (await canLaunchUrl(uri)) {
+                                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Authorize Facebook in your browser, then return here.'),
+                                          duration: Duration(seconds: 5),
+                                        ),
+                                      );
+                                    }
+                                  } else {
+                                    throw Exception('Could not open Facebook authorization URL');
+                                  }
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Error: $e')),
+                                  );
+                                }
+                              } finally {
+                                if (mounted) setState(() => _facebookLoading = false);
                               }
                             },
                           ),
