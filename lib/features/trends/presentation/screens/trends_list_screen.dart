@@ -50,6 +50,28 @@ int _parseCount(String s) {
   return int.tryParse(v) ?? 0;
 }
 
+/// Computes a TikTok Algo Score (0–100) based on the like/view ratio and
+/// view volume tier — mirrors the key signals TikTok weights most heavily.
+int _algoScore(String views, String likes) {
+  final v = _parseCount(views);
+  final l = _parseCount(likes);
+  if (v <= 0) return 0;
+  final ratio = l / v;
+  // Like/view ratio score — 10 %+ gives the maximum 50 pts
+  final ratioScore = (ratio * 500).clamp(0.0, 50.0).round();
+  // Volume tier score (max 30 pts) — rewards proven reach
+  final volumeScore = v >= 10000000 ? 30
+      : v >= 5000000  ? 25
+      : v >= 1000000  ? 20
+      : v >= 500000   ? 15
+      : v >= 100000   ? 10
+      : v >= 10000    ? 5
+      : 0;
+  // Engagement quality bonus (max 20 pts)
+  final engBonus = ratio >= 0.10 ? 20 : ratio >= 0.05 ? 14 : ratio >= 0.02 ? 7 : 0;
+  return (ratioScore + volumeScore + engBonus).clamp(0, 100);
+}
+
 /// Returns a momentum label and color for a pill badge.
 /// Pass [growth] for hashtag trend cards, or [viewCount] for TikTok video cards.
 ({String label, Color color}) _momentumBadge({double? growth, int? viewCount}) {
@@ -100,6 +122,7 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
   final _sortOptions = [
     ('Views', 'views'),
     ('Likes', 'likes'),
+    ('Algo',  'algo'),
     ('Date',  'recent'),
   ];
   final _niches = [
@@ -666,6 +689,8 @@ class _TikTokVideosSection extends ConsumerWidget {
               sorted.sort((a, b) => _parseCount(b.views).compareTo(_parseCount(a.views)));
             } else if (sort == 'likes') {
               sorted.sort((a, b) => _parseCount(b.likes).compareTo(_parseCount(a.likes)));
+            } else if (sort == 'algo') {
+              sorted.sort((a, b) => _algoScore(b.views, b.likes).compareTo(_algoScore(a.views, a.likes)));
             }
             // 'recent' keeps API order (most recently trending first)
 
@@ -694,8 +719,24 @@ class _TikTokVideoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final score = _algoScore(video.views, video.likes);
+    final scoreColor = score >= 70
+        ? Colors.orange
+        : score >= 45
+            ? AppColors.success
+            : AppColors.textMuted;
+    final v = _parseCount(video.views);
+    final l = _parseCount(video.likes);
+    final engRate = v > 0 ? (l / v * 100).toStringAsFixed(1) : '0.0';
+
     return GestureDetector(
-      onTap: video.tiktokUrl.isNotEmpty
+      onTap: () => context.push(
+        '/ai-generator'
+        '?niche=${Uri.encodeComponent(video.niche.isNotEmpty ? video.niche : video.title)}'
+        '&selectedVideoId=${video.videoId}'
+        '&platform=tiktok',
+      ),
+      onLongPress: video.tiktokUrl.isNotEmpty
           ? () => launchUrl(Uri.parse(video.tiktokUrl), mode: LaunchMode.externalApplication)
           : null,
       child: Container(
@@ -747,7 +788,23 @@ class _TikTokVideoCard extends StatelessWidget {
               ),
             ),
 
-            // Open-in-new icon — top right
+            // Algo Score badge — top left
+            Positioned(
+              top: 8, left: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: scoreColor.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '⚡$score',
+                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white),
+                ),
+              ),
+            ),
+
+            // Open-in-new icon — top right (long-press hint)
             if (video.tiktokUrl.isNotEmpty)
               Positioned(
                 top: 8, right: 8,
@@ -820,6 +877,9 @@ class _TikTokVideoCard extends StatelessWidget {
                       const SizedBox(width: 2),
                       Text(video.likes,
                           style: const TextStyle(fontSize: 10, color: Colors.white70)),
+                      const SizedBox(width: 8),
+                      Text('$engRate% ER',
+                          style: TextStyle(fontSize: 9, color: AppColors.tikTok.withValues(alpha: 0.85), fontWeight: FontWeight.w600)),
                     ]),
                     if (video.hashtags.isNotEmpty) ...[
                       const SizedBox(height: 5),
@@ -837,6 +897,26 @@ class _TikTokVideoCard extends StatelessWidget {
                         )).toList(),
                       ),
                     ],
+                    const SizedBox(height: 6),
+                    // "Use as inspiration" CTA
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppColors.tikTok.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AppColors.tikTok.withValues(alpha: 0.5)),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.auto_awesome, size: 10, color: AppColors.tikTok),
+                          SizedBox(width: 4),
+                          Text('Use as Inspiration',
+                              style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: AppColors.tikTok)),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),

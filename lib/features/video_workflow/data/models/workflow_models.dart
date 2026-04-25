@@ -82,7 +82,8 @@ class TrendingVideoModel {
       // PostgreSQL array format: "{#tag1,#tag2}" → ["#tag1", "#tag2"]
       final cleaned = value.replaceAll(RegExp(r'[{}"]'), '').trim();
       if (cleaned.isEmpty) return [];
-      return cleaned.split(',').map((e) => e.trim()).toList();
+      // Split by comma then strip any internal quotes
+      return cleaned.split(',').map((e) => e.trim().replaceAll(RegExp(r'^"|"$'), '')).toList();
     }
     return [];
   }

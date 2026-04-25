@@ -10,7 +10,10 @@ final dioProvider = Provider<Dio>((ref) {
     baseUrl: ServerConfig.httpBase,
     connectTimeout: const Duration(seconds: 30),
     receiveTimeout: const Duration(seconds: 60),
-    headers: {'Content-Type': 'application/json'},
+    headers: {
+      'Content-Type': 'application/json',
+      'Bypass-Tunnel-Reminder': 'true',
+    },
   ));
   dio.interceptors.add(_AuthInterceptor(ref.read(secureStorageProvider)));
   return dio;

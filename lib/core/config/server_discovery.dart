@@ -7,7 +7,7 @@
 ///
 /// Usage:
 ///   final ip = await ServerDiscovery.resolveHost();
-///   // → '192.168.1.15'  (or whatever the PC's current IP is)
+///   // → '192.168.56.1'  (or whatever the PC's current IP is)
 library;
 
 import 'dart:async';
@@ -19,7 +19,7 @@ import 'server_config.dart';
 
 const _cacheKey = 'discovered_server_host';
 const _port = serverPort;
-const _timeout = Duration(milliseconds: 800);
+const _timeout = Duration(milliseconds: 3000);
 
 /// Returns the host (no port, no scheme) of the Django server.
 /// Falls back to the compile-time [serverHost] if discovery fails.
@@ -42,8 +42,8 @@ Future<String> discoverServerHost() async {
     for (var i = 100; i <= 120; i++) { candidates.add('$subnet.$i'); }
   }
 
-  // Always include known historical IPs as extra hints
-  candidates.addAll(['127.0.0.1', '192.168.1.15', '192.168.1.112', '192.168.1.217']);
+  // Always include the tunnel as the first extra hint
+  candidates.addAll(['192.168.1.130', 'busy-days-learn.loca.lt', '127.0.0.1', '10.211.201.240', '192.168.1.112']);
 
   final found = await _raceReachable(candidates.toList());
   if (found != null) {
@@ -59,10 +59,12 @@ Future<String> discoverServerHost() async {
 
 Future<bool> _isReachable(String host) async {
   try {
+    final isTunnel = host.contains('loca.lt');
+    final url = isTunnel ? 'https://$host/api/health/' : 'http://$host:$_port/api/health/';
+    
     final client = HttpClient()..connectionTimeout = _timeout;
-    final req = await client
-        .getUrl(Uri.parse('http://$host:$_port/api/health/'))
-        .timeout(_timeout);
+    final req = await client.getUrl(Uri.parse(url)).timeout(_timeout);
+    if (isTunnel) req.headers.add('bypass-tunnel-reminder', 'true');
     final resp = await req.close().timeout(_timeout);
     await resp.drain<void>();
     client.close();
@@ -88,14 +90,14 @@ Future<String?> _raceReachable(List<String> hosts) async {
   return completer.future.timeout(const Duration(seconds: 4), onTimeout: () => null);
 }
 
-/// Returns the subnet prefix, e.g. '192.168.1' from '192.168.1.3'.
+/// Returns the subnet prefix, e.g. '192.168.100' from '192.168.100.3'.
 Future<String?> _localSubnet() async {
   try {
     final interfaces = await NetworkInterface.list(type: InternetAddressType.IPv4);
     for (final iface in interfaces) {
       for (final addr in iface.addresses) {
         final parts = addr.address.split('.');
-        if (parts.length == 4 && parts[0] == '192' && parts[1] == '168') {
+        if (parts.length == 4 && (parts[0] == '192' || parts[0] == '10' || parts[0] == '172')) {
           return '${parts[0]}.${parts[1]}.${parts[2]}';
         }
       }
