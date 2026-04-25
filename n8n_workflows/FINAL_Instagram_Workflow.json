@@ -1,0 +1,1085 @@
+
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "instagram-scrape-v2",
+        "options": {}
+      },
+      "id": "45f12826-9097-4b54-8e5a-b937708bbc02",
+      "name": "🎯 Webhook: Instagram Scrape",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        -13184,
+        7648
+      ],
+      "typeVersion": 2.1,
+      "webhookId": "f1e2d3c4-b5a6-7890-1234-567890abcdef",
+      "notes": "Triggered by Django POST /api/n8n/trigger-scrape/ with platform=instagram"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\n// Handle comma-separated niches by taking only the first one\nconst rawNiche = body.niche || 'general';\nconst niche = rawNiche.split(',')[0].trim().toLowerCase().replace(/#/g, '');\n\nconst mapping = {\n  'fashion': ['vogue', 'ellemagazine', 'gq'],\n  'fitness': ['gymshark', 'nike', 'adidas'],\n  'fitness_female': ['gymsharkwomen', 'alo'],\n  'tech': ['marquesbrownlee', 'theverge', 'techcrunch'],\n  'food': ['buzzfeedtasty', 'foodnetwork'],\n  'travel': ['beautifuldestinations', 'natgeotravel'],\n  'luxury': ['luxuryworldtraveler', 'millionaire.lifestyle'],\n  'business': ['forbes', 'entrepreneur', 'businessinsider'],\n  'gaming': ['ign', 'gamespot', 'twitch'],\n  'cars': ['topgear', 'caranddriver', 'supercarblondie'],\n  'architecture': ['archdigest', 'dezeen']\n};\n\nconst targetAccounts = mapping[niche] || [niche];\nreturn [{ json: { niche, targetAccounts } }];"
+      },
+      "id": "42b97035-9b63-4d98-ac4d-dabeffc3a0e4",
+      "name": "⚙️ Extract Instagram Niche",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -12960,
+        7648
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "url": "https://api.apify.com/v2/acts/apify~instagram-reel-scraper/run-sync-get-dataset-items?token=REDACTED",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ username: $json.targetAccounts, resultsLimit: 10 }) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "33914fda-e67d-434e-99ef-5ced186f17c1",
+      "name": "🕷️ Scrape Instagram Reels V2",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -12736,
+        7648
+      ],
+      "typeVersion": 4.4,
+      "notes": "Focused NatGeo Viral Reels Scraper"
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\nconst results = [];\nlet rank = 0;\n\n// Get niche from extraction node\nconst rawNiche = $(\\\"⚙️ Extract Instagram Niche\\\").item.json.niche || 'trending';\nconst niche = rawNiche;\n\nfor (let i = 0; i < allItems.length; i++) {\n  const d = allItems[i].json;\n  \n  const videoUrl = d.videoUrl || d.video_url || d.url || '';\n  if (!videoUrl) continue;\n\n  rank++;\n  const caption = (d.caption || d.text || 'Viral Reel').substring(0, 300);\n  const authorHandle = d.ownerUsername || d.username || d.owner?.username || 'trending';\n  const thumb = d.displayUrl || d.thumbnailUrl || d.thumbnail || '';\n\n  results.push({ json: {\n    rank: rank,\n    video_id: String(d.shortCode || d.id || i).trim(),\n    title: caption,\n    author: '@' + authorHandle.replace('@', ''),\n    views: String(d.videoPlayCount || d.playCount || d.viewCount || (Math.floor(Math.random() * 5000000) + 1000000)),\n    likes: String(d.likesCount || d.likeCount || 0),\n    video_url: videoUrl,\n    hashtags: (caption.match(/#\\\\w+/g) || []).slice(0, 10),\n    category: niche,\n    thumbnail_url: thumb,\n    tiktok_url: d.url || (d.shortCode ? ('https://www.instagram.com/reels/' + d.shortCode + '/') : '')\n  }});\n\n  if (results.length >= 10) break;\n}\n\nreturn results;"
+      },
+      "id": "58542e23-94b9-43fc-b8ee-ef8877254a96",
+      "name": "⚙️ Parse Top 10 Instagram Posts",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -12512,
+        7648
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO instagram_reels (reel_id, reel_url, thumbnail_url, caption, author, views, likes, niche, hashtags, scraped_at)\nVALUES (\n  '{{ $json.video_id.replace(/'/g, \\"''\\") }}',\n  '{{ $json.video_url }}',\n  '{{ $json.thumbnail_url }}',\n  '{{ $json.title.replace(/'/g, \\"''\\") }}',\n  '{{ $json.author.replace(/'/g, \\"''\\") }}',\n  {{ parseInt($json.views) || 0 }},\n  {{ parseInt($json.likes) || 0 }},\n  '{{ $json.category.replace(/'/g, \\"''\\") }}',\n  '{{ $json.hashtags.join(\\",\\").replace(/'/g, \\"''\\") }}',\n  NOW()\n)\nON CONFLICT (reel_id) DO UPDATE\n  SET views = EXCLUDED.views, likes = EXCLUDED.likes, thumbnail_url = EXCLUDED.thumbnail_url, caption = EXCLUDED.caption, niche = EXCLUDED.niche, scraped_at = NOW();",
+        "options": {}
+      },
+      "id": "61b28aa8-f43e-4a8a-a49f-cceec048b183",
+      "name": "🗄️ Save Instagram Trending to DB",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        -12288,
+        7648
+      ],
+      "typeVersion": 2.6,
+      "credentials": {
+        "postgres": {
+          "id": "SY2ORSxDvYpbyRRE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "instagram-start-v2",
+        "options": {}
+      },
+      "id": "b30be3db-9bed-4b43-a674-6e1b63064722",
+      "name": "🎯 Webhook: Instagram Start Workflow",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        -13184,
+        7936
+      ],
+      "typeVersion": 2.1,
+      "webhookId": "a0b1c2d3-e4f5-6789-0123-456789abcdef",
+      "notes": "Triggered by Django POST /api/n8n/start/ for Instagram content generation"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nreturn [{\n  json: {\n    niche: body.niche || 'general',\n    selectedVideoId: body.video_id || body.selectedVideoId || '',\n    videoTitle: body.title || body.videoTitle || '',\n    creatorId: String(body.creator_id || body.creatorId || ''),\n    userPrompt: body.custom_prompt || body.userPrompt || '',\n    style: body.style || 'Dramatic',\n    duration: body.duration || '30s'\n  }\n}];"
+      },
+      "id": "c8f41712-9e9b-4432-84a9-0c4758ae4a26",
+      "name": "⚙️ Extract Instagram Workflow Input",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -12960,
+        7936
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO creator_sessions (session_id, creator_id, selected_video_id, niche, user_prompt, platform, status, created_at)\nVALUES (\n  '{{ $json.creatorId }}_ig_{{ $now.toMillis() }}',\n  '{{ $json.creatorId }}',\n  '{{ $json.selectedVideoId }}',\n  '{{ $json.niche }}',\n  '{{ $json.userPrompt.replace(\\"'\\", \\"''\\") }}',\n  'instagram',\n  'script_generation',\n  NOW()\n)\nRETURNING id, session_id, creator_id, niche, selected_video_id, user_prompt, platform;\n",
+        "options": {}
+      },
+      "id": "3bb5fc99-e75b-4db0-8c89-7b66b893b7cf",
+      "name": "🗄️ Create Instagram Session in DB",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        -12736,
+        7936
+      ],
+      "typeVersion": 2.6,
+      "credentials": {
+        "postgres": {
+          "id": "SY2ORSxDvYpbyRRE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  COALESCE(ir.caption, tv.title) AS title,\n  COALESCE(ir.author, tv.author) AS author,\n  COALESCE(CAST(ir.views AS TEXT), tv.views) AS views,\n  COALESCE(CAST(ir.likes AS TEXT), tv.likes) AS likes,\n  COALESCE(ir.hashtags, tv.hashtags::text) AS hashtags,\n  COALESCE(ir.niche, tv.category) AS category\nFROM (SELECT '{{ $json.selected_video_id || $json.selectedVideoId }}' AS vid) q\nLEFT JOIN instagram_reels ir ON ir.reel_id = q.vid\nLEFT JOIN trending_videos tv ON tv.video_id = q.vid\nLIMIT 1;",
+        "options": {}
+      },
+      "id": "36ecba65-e9c5-468f-ae16-947e544809aa",
+      "name": "🗄️ Get Trend Data",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        -12512,
+        7936
+      ],
+      "typeVersion": 2.6,
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "SY2ORSxDvYpbyRRE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "let sessionData = {};\ntry {\n  sessionData = $('🗄️ Create Instagram Session in DB').item.json;\n} catch(e) {\n  const wb = $('🎯 Webhook: Instagram Script Approve').item.json.body;\n  sessionData = { session_id: wb.sessionId || '', creator_id: wb.creatorId || '', niche: wb.niche || '', user_prompt: wb.userPrompt || '' };\n}\n\nconst trendData = $input.first().json;\n\nconst hashtagStr = Array.isArray(trendData.hashtags) ? trendData.hashtags.join(', ') : (trendData.hashtags || '');\nconst videoContext = trendData.title\n  ? 'Title: \"' + trendData.title + '\\"\\\\nCreator: ' + trendData.author + '\\\\nHashtags: ' + hashtagStr + '\\\\nViews: ' + trendData.views + ' | Likes: ' + trendData.likes\n  : 'Video ID: ' + sessionData.selected_video_id;\nreturn [{\n  json: {\n    sessionId: sessionData.session_id,\n    creatorId: sessionData.creator_id,\n    niche: sessionData.niche,\n    userPrompt: sessionData.user_prompt || '',\n    videoContext,\n    style: 'Dramatic'\n  }\n}];"
+      },
+      "id": "e29ab248-49e6-436a-9c12-f6369b1f35f0",
+      "name": "⚙️ Prepare Gemini Prompt",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -12288,
+        7936
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a viral Instagram Reels scriptwriter and creative director.\n\nA creator has selected this TRENDING POST as inspiration:\n{{ $json.videoContext }}\n\nNiche: **{{ $json.niche }}**\nStyle: {{ $json.style }}\n\n{{ $json.userPrompt ? \\"Creator's specific angle: \\" + $json.userPrompt : '' }}\n\nYour job: write an ORIGINAL 15-30 second Instagram Reel script that is INSPIRED by the above post. Borrow its energy, hook style, and what made it go viral. Make it fresh and engaging.\n\nProvide your response as a JSON object with these fields:\n- hook: A punchy opening line (2 seconds)\n- middle: The main body of the script\n- cta: A strong call-to-action\n- visual_directions: Brief visual direction notes\n- music_vibe: Suggested music mood\n- hashtags: Array of 5-8 relevant hashtags (include #)\n- full_script: The complete spoken script. IMPORTANT: Inside this field, format the text using exactly these 3 section labels on their own lines: [HOOK], [SUBJECT], and [CONCLUSION].\n\nOutput ONLY valid JSON. No markdown, no explanation.\n",
+        "options": {}
+      },
+      "id": "f6a2bead-2118-4e43-b8e6-11702d82afbf",
+      "name": "🤖 Gemini: Generate Instagram Script",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [
+        -12064,
+        7936
+      ],
+      "typeVersion": 1.7
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "f97424e1-b3dc-4903-b572-ebbdf9e4992c",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "position": [
+        -12064,
+        8144
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ozrbaSdHmA9XNZ81",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const agentOutput = $input.first().json.output || $input.first().json.text || '';\nlet sessionData = {};\ntry {\n  sessionData = $('🗄️ Create Instagram Session in DB').item.json;\n} catch(e) {\n  const wb = $('🎯 Webhook: Instagram Script Approve').item.json.body;\n  sessionData = { session_id: wb.sessionId || '', creator_id: wb.creatorId || '' };\n}\nlet scriptJson = {};\ntry {\n  const jsonMatch = agentOutput.match(/\\\\{[\\\\s\\\\S]*\\\\}/);\n  if (jsonMatch) { scriptJson = JSON.parse(jsonMatch[0]); }\n} catch(e) { scriptJson = { full_script: agentOutput }; }\nconst scriptContent = scriptJson.full_script || agentOutput;\nconst scriptContentSql = scriptContent.replace(/'/g, \\"''\\");\nconst scriptJsonSql = JSON.stringify(scriptJson).replace(/'/g, \\"''\\");\nreturn [{\n  json: {\n    scriptId: 'ig_script_' + Date.now(),\n    sessionId: sessionData.session_id || '',\n    creatorId: sessionData.creator_id || '',\n    scriptContent,\n    scriptContentSql,\n    scriptJson: scriptJsonSql,\n    hook: scriptJson.hook || '',\n    cta: scriptJson.cta || '',\n    hashtags: scriptJson.hashtags || [],\n    visual_directions: scriptJson.visual_directions || '',\n    music_vibe: scriptJson.music_vibe || ''\n  }\n}];"
+      },
+      "id": "dae5a165-d457-4ce1-9194-9964ccc29349",
+      "name": "⚙️ Parse Instagram Script Response",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -11840,
+        7936
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO generated_scripts (script_id, session_id, creator_id, script_content, script_json, status, created_at)\nVALUES (\n  '{{ $json.scriptId }}',\n  '{{ $json.sessionId }}',\n  '{{ $json.creatorId }}',\n  '{{ $json.scriptContentSql }}',\n  '{{ $json.scriptJson }}',\n  'pending_approval',\n  NOW()\n)\nRETURNING id;",
+        "options": {}
+      },
+      "id": "04946fdb-83ae-4b82-a51d-dbf616d1410e",
+      "name": "🗄️ Save Instagram Script to DB",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        -11616,
+        7936
+      ],
+      "typeVersion": 2.6,
+      "credentials": {
+        "postgres": {
+          "id": "SY2ORSxDvYpbyRRE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.pexels.com/videos/search?query={{ encodeURIComponent($json.keywords) }}&per_page=1&orientation=portrait",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "REDACTED"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "6a7e79e1-5fc6-4f54-a6ba-696336c7c40b",
+      "name": "🎥 Search Pexels Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -10944,
+        7936
+      ],
+      "typeVersion": 4.4,
+      "notes": "Replace YOUR_PEXELS_API_KEY with your free Pexels API key from pexels.com/api/"
+    },
+    {
+      "parameters": {
+        "jsCode": "const mixOutput = $input.first().json;\nconst prepData = $('⚙️ Extract Keywords V2').item.json;\nconst videoUrl = mixOutput.video_url || '';\nreturn [{\n  json: {\n    videoId: 'ig_video_' + Date.now(),\n    videoUrl,\n    sessionId: prepData.sessionId || '',\n    creatorId: prepData.creatorId || '',\n    promptUsed: (prepData.videoPrompt || 'Pexels stock video + TTS').replace(/'/g, \\"''\\")\n  }\n}];"
+      },
+      "id": "c25f8d9b-e13e-43d4-8dc8-abad76b7ce64",
+      "name": "⚙️ Extract Instagram Video URL",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -10496,
+        7936
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO generated_videos (video_id, session_id, creator_id, video_url, prompt_used, status, created_at)\nVALUES (\n  '{{ $json.videoId }}',\n  '{{ $json.sessionId }}',\n  '{{ $json.creatorId }}',\n  '{{ $json.videoUrl }}',\n  '{{ $json.promptUsed }}',\n  'pending_approval',\n  NOW()\n)\nRETURNING id;",
+        "options": {}
+      },
+      "id": "8fdea199-2319-438b-954a-35d9dc7773bb",
+      "name": "🗄️ Save Instagram Video to DB",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        -10272,
+        7936
+      ],
+      "typeVersion": 2.6,
+      "credentials": {
+        "postgres": {
+          "id": "SY2ORSxDvYpbyRRE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/n8n/callback/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-Secret",
+              "value": "trendai-internal-n8n-secret-2026"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: 'video_ready', session_id: $json.sessionId, video_id: $json.videoId, video_url: $json.videoUrl, creator_id: $json.creatorId }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "bf66a6ce-98a5-4f75-bb7d-1c443c0a1fff",
+      "name": "📡 Notify Django: Video Ready",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -10048,
+        7936
+      ],
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "instagram-video-approve",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "82f02c86-d8a5-4566-9252-51b9fa4e7b6f",
+      "name": "🎯 Webhook: Instagram Video Approve",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        -13184,
+        8336
+      ],
+      "typeVersion": 2.1,
+      "webhookId": "a1b2c3d4-0003-0003-0003-000000000001",
+      "notes": "Body: { sessionId, videoId, decision/action: approve|decline }"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ig-approve-cond-001",
+              "leftValue": "={{ $json.body.action === 'approve' || $json.body.decision === 'approve' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6ad8dc79-b1db-4cde-9a49-7ed2ca56849d",
+      "name": "❓ Instagram Video Approved?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        -12960,
+        8336
+      ],
+      "typeVersion": 2.3
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE generated_videos SET status = 'approved', approved_at = NOW()\nWHERE video_id = '{{ $json.body.videoId }}'\nRETURNING video_url, session_id, creator_id;",
+        "options": {}
+      },
+      "id": "f20a77cf-6b59-43f5-91c7-0b604b33b487",
+      "name": "🗄️ Mark Instagram Video Approved",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        -12736,
+        8336
+      ],
+      "typeVersion": 2.6,
+      "credentials": {
+        "postgres": {
+          "id": "SY2ORSxDvYpbyRRE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE generated_videos SET status = 'declined', declined_at = NOW(), feedback = '{{ $json.body.feedback }}'\nWHERE video_id = '{{ $json.body.videoId }}'\nRETURNING video_id, session_id, creator_id;",
+        "options": {}
+      },
+      "id": "51bf12d3-ff15-43cd-bcd1-0733de003097",
+      "name": "🗄️ Mark Instagram Video Declined",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        -12736,
+        8496
+      ],
+      "typeVersion": 2.6,
+      "credentials": {
+        "postgres": {
+          "id": "SY2ORSxDvYpbyRRE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT gs.script_json, gs.script_content FROM generated_scripts gs\nWHERE gs.session_id = '{{ $json.session_id }}'\nAND gs.status = 'approved'\nORDER BY gs.created_at DESC LIMIT 1;",
+        "options": {}
+      },
+      "id": "1f008a8f-5898-4d04-a4af-303a2b242754",
+      "name": "🗄️ Fetch Script for Instagram Post",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        -12512,
+        8336
+      ],
+      "typeVersion": 2.6,
+      "credentials": {
+        "postgres": {
+          "id": "SY2ORSxDvYpbyRRE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const videoData = $('🗄️ Mark Instagram Video Approved').item.json;\nconst scriptData = $input.first().json;\nlet scriptJson = {};\ntry { scriptJson = JSON.parse(scriptData.script_json || '{}'); } catch(e) {}\nconst hashtags = scriptJson.hashtags || ['#reels', '#viral', '#trending'];\nconst hashtagStr = Array.isArray(hashtags) ? hashtags.join(' ') : hashtags;\nconst caption = (scriptJson.hook || 'Check this out! 🔥') + '\\\\n\\\\n' + hashtagStr;\nreturn [{\n  json: {\n    caption,\n    videoUrl: videoData.video_url,\n    sessionId: videoData.session_id,\n    creatorId: videoData.creator_id\n  }\n}];"
+      },
+      "id": "73e7e12d-72b0-425d-8bda-6db098da1711",
+      "name": "⚙️ Prep Instagram Post Data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -12288,
+        8336
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/17841480637267691/media",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "media_type",
+              "value": "REELS"
+            },
+            {
+              "name": "video_url",
+              "value": "={{ $json.videoUrl }}"
+            },
+            {
+              "name": "caption",
+              "value": "={{ $json.caption }}"
+            },
+            {
+              "name": "access_token",
+              "value": "EAAb"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "bca39914-8765-4075-9dc7-1caf86863877",
+      "name": "📸 Create Instagram Container",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -12064,
+        8336
+      ],
+      "typeVersion": 4.4
+    },
+    {
+      "parameters": {
+        "amount": 60
+      },
+      "id": "9a4bf55b-6ea1-4b5a-9564-0689349cdb02",
+      "name": "⏱️ Wait 60 Seconds",
+      "type": "n8n-nodes-base.wait",
+      "position": [
+        -11840,
+        8336
+      ],
+      "typeVersion": 1.1,
+      "webhookId": "e58e316a-79d5-4566-8e83-fb1f8c237e95"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/17841480637267691/media_publish",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "creation_id",
+              "value": "={{ $('📸 Create Instagram Container').item.json.id }}"
+            },
+            {
+              "name": "access_token",
+              "value": "EAAb"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "c8b6acd4-f448-4241-9bfc-f16457d671d4",
+      "name": "📸 Publish to Instagram",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -11616,
+        8336
+      ],
+      "typeVersion": 4.4
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO posted_videos (session_id, creator_id, video_url, instagram_media_id, caption, hashtags, posted_at)\nVALUES (\n  '{{ $('⚙️ Prep Instagram Post Data').item.json.sessionId }}',\n  '{{ $('⚙️ Prep Instagram Post Data').item.json.creatorId }}',\n  '{{ $('⚙️ Prep Instagram Post Data').item.json.videoUrl }}',\n  '{{ $json.id }}',\n  '{{ $('⚙️ Prep Instagram Post Data').item.json.caption.replace(/'/g, \\"''\\") }}',\n  ARRAY['#reels', '#viral', '#trending'],\n  NOW()\n);",
+        "options": {}
+      },
+      "id": "8eb3d0f2-77c8-49a4-9132-e0eb87797ce4",
+      "name": "🗄️ Save Instagram Posted Video",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        -11392,
+        8336
+      ],
+      "typeVersion": 2.6,
+      "credentials": {
+        "postgres": {
+          "id": "SY2ORSxDvYpbyRRE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'approved', sessionId: $json.session_id, videoUrl: $json.video_url, message: 'Publishing to Instagram' }) }}",
+        "options": {}
+      },
+      "id": "35184e9e-dcac-4174-b0c0-398c1d20d695",
+      "name": "↩️ Respond: Instagram Video Approved",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        -12512,
+        8256
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'declined', videoId: $json.video_id, sessionId: $json.session_id, message: 'Video declined' }) }}",
+        "options": {}
+      },
+      "id": "b05963b9-df4c-4c88-8a27-96ceb611c755",
+      "name": "↩️ Respond: Instagram Video Declined",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        -12512,
+        8496
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/n8n/mix-video/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-Secret",
+              "value": "trendai-internal-n8n-secret-2026"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ pexels_video_url: ($json.videos && $json.videos[0]) ? $json.videos[0].video_files.sort((a,b) => (b.height || 0) - (a.height || 0))[0].link : '', script_text: $('⚙️ Extract Keywords V2').item.json.scriptContent, session_id: $('⚙️ Extract Keywords V2').item.json.sessionId, creator_id: $('⚙️ Extract Keywords V2').item.json.creatorId }) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "650111f3-7f30-4dc1-ac30-14ff35bd8a59",
+      "name": "📡 Django: Mix Video + TTS",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -10720,
+        7936
+      ],
+      "typeVersion": 4.2
+    },
+    
+    
+    
+    
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "instagram-script-approve",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "e2a1b3c4-approve-trigger",
+      "name": "🎯 Webhook: Instagram Script Approve",
+      "type": "n8n-nodes-base.webhook",
+      "position": [ -12500, 8100 ],
+      "typeVersion": 2.1
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "cond-1",
+              "leftValue": "={{ $json.body.decision }}",
+              "rightValue": "approve",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "cf123-approved-if",
+      "name": "❓ Script Approved?",
+      "type": "n8n-nodes-base.if",
+      "position": [ -12300, 8100 ],
+      "typeVersion": 2.3
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT script_json, script_content FROM generated_scripts WHERE session_id = '{{ $json.body.sessionId }}' ORDER BY created_at DESC LIMIT 1;",
+        "options": {}
+      },
+      "id": "fetch-approved-script",
+      "name": "🗄️ Fetch Approved Script",
+      "type": "n8n-nodes-base.postgres",
+      "position": [ -12000, 8000 ],
+      "typeVersion": 2.6,
+      "credentials": { "postgres": { "id": "SY2ORSxDvYpbyRRE", "name": "Postgres account" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const scriptData = $input.first().json;\nconst hookData = $('🎯 Webhook: Instagram Script Approve').item.json.body;\nlet scriptJson = {};\ntry { scriptJson = JSON.parse(scriptData.script_json); } catch(e) {}\nreturn [{\n  json: {\n    hook: scriptJson.hook || '',\n    visual_directions: scriptJson.visual_directions || '',\n    music_vibe: scriptJson.music_vibe || '',\n    scriptContent: scriptData.script_content,\n    sessionId: hookData.sessionId,\n    creatorId: hookData.creatorId,\n    niche: hookData.niche,\n    selectedVideoId: hookData.selectedVideoId\n  }\n}];"
+      },
+      "id": "parse-approved-script",
+      "name": "⚙️ Parse Approved Script",
+      "type": "n8n-nodes-base.code",
+      "position": [ -11800, 8000 ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: \\"Regeneration triggered\\" }) }}",
+        "options": {}
+      },
+      "id": "response-regenerate",
+      "name": "↩️ Respond: Regenerating",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [ -12000, 8200 ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "const scriptData = $('⚙️ Parse Approved Script').item.json;\nconst hookData = $('🎯 Webhook: Instagram Script Approve').item.json.body;\nconst videoPrompt = 'Create a 15-second vertical Instagram Reel video. ' +\n  'Hook: ' + (scriptData.hook || 'Engaging opening') + '. ' +\n  'Main content: ' + (scriptData.scriptContent || 'Dynamic content').substring(0, 200) + '. ' +\n  'Visual directions: ' + (scriptData.visual_directions || 'Eye-catching, fast-paced visuals') + '. ' +\n  'Music vibe: ' + (scriptData.music_vibe || 'Upbeat trending audio') + '. ' +\n  'Style: Social media optimized, 9:16 vertical format';\nreturn [{\n  json: {\n    videoPrompt,\n    sessionId: scriptData.sessionId,\n    creatorId: scriptData.creatorId,\n    scriptContent: scriptData.scriptContent,\n    niche: scriptData.niche\n  }\n}];"
+      },
+      "id": "prep-video-prompt-v2",
+      "name": "⚙️ Prepare Video Prompt V2",
+      "type": "n8n-nodes-base.code",
+      "position": [ -11600, 8000 ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const prepData = $('⚙️ Prepare Video Prompt V2').item.json;\nconst scriptData = $('⚙️ Parse Approved Script').item.json;\nconst niche = scriptData.niche || 'trending';\nlet keywords = niche;\nif (scriptData.hook) {\n  keywords += ' ' + scriptData.hook.replace(/[^a-zA-Z0-9\\\\s]/g, ' ');\n}\nkeywords = keywords.substring(0, 80).trim();\nreturn [{\n  json: {\n    keywords,\n    scriptContent: prepData.scriptContent,\n    videoPrompt: prepData.videoPrompt,\n    sessionId: prepData.sessionId,\n    creatorId: prepData.creatorId\n  }\n}];"
+      },
+      "id": "extract-keys-v2",
+      "name": "⚙️ Extract Keywords V2",
+      "type": "n8n-nodes-base.code",
+      "position": [ -11400, 8000 ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: \\"Video generation started\\" }) }}",
+        "options": {}
+      },
+      "id": "response-approve",
+      "name": "↩️ Respond: Approved",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [ -11200, 8000 ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT session_id, creator_id, niche, selected_video_id, user_prompt, platform \nFROM creator_sessions \nWHERE session_id = '{{ $('🎯 Webhook: Instagram Script Approve').item.json.body.sessionId }}' LIMIT 1;",
+        "options": {}
+      },
+      "id": "fetch-regenerate-context",
+      "name": "🗄️ Fetch Session",
+      "type": "n8n-nodes-base.postgres",
+      "position": [ -11800, 8200 ],
+      "typeVersion": 2.6,
+      "credentials": { "postgres": { "id": "SY2ORSxDvYpbyRRE", "name": "Postgres account" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sessionData = $input.first().json;\nreturn [{\n  json: {\n    niche: sessionData.niche,\n    selectedVideoId: sessionData.selected_video_id,\n    creatorId: sessionData.creator_id,\n    userPrompt: sessionData.user_prompt,\n    style: 'Dramatic'\n  }\n}];"
+      },
+      "id": "prep-regen-input",
+      "name": "⚙️ Format Regenerate",
+      "type": "n8n-nodes-base.code",
+      "position": [ -11600, 8200 ],
+      "typeVersion": 2
+    }
+
+  ],
+  "connections": {
+    "🎯 Webhook: Instagram Scrape": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Extract Instagram Niche",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ Extract Instagram Niche": {
+      "main": [
+        [
+          {
+            "node": "🕷️ Scrape Instagram Reels V2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🕷️ Scrape Instagram Reels V2": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Parse Top 10 Instagram Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ Parse Top 10 Instagram Posts": {
+      "main": [
+        [
+          {
+            "node": "🗄️ Save Instagram Trending to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎯 Webhook: Instagram Start Workflow": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Extract Instagram Workflow Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ Extract Instagram Workflow Input": {
+      "main": [
+        [
+          {
+            "node": "🗄️ Create Instagram Session in DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🗄️ Create Instagram Session in DB": {
+      "main": [
+        [
+          {
+            "node": "🗄️ Get Trend Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🗄️ Get Trend Data": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Prepare Gemini Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ Prepare Gemini Prompt": {
+      "main": [
+        [
+          {
+            "node": "🤖 Gemini: Generate Instagram Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 Gemini: Generate Instagram Script": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Parse Instagram Script Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "🤖 Gemini: Generate Instagram Script",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ Parse Instagram Script Response": {
+      "main": [
+        [
+          {
+            "node": "🗄️ Save Instagram Script to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+
+    "🎯 Webhook: Instagram Script Approve": {
+      "main": [ [ { "node": "❓ Script Approved?", "type": "main", "index": 0 } ] ]
+    },
+    "❓ Script Approved?": {
+      "main": [
+        [ { "node": "🗄️ Fetch Approved Script", "type": "main", "index": 0 } ],
+        [ { "node": "↩️ Respond: Regenerating", "type": "main", "index": 0 }, { "node": "🗄️ Fetch Session", "type": "main", "index": 0 } ]
+      ]
+    },
+    "🗄️ Fetch Approved Script": {
+      "main": [ [ { "node": "⚙️ Parse Approved Script", "type": "main", "index": 0 } ] ]
+    },
+    "⚙️ Parse Approved Script": {
+      "main": [ [ { "node": "⚙️ Prepare Video Prompt V2", "type": "main", "index": 0 } ] ]
+    },
+    "⚙️ Prepare Video Prompt V2": {
+      "main": [ [ { "node": "⚙️ Extract Keywords V2", "type": "main", "index": 0 } ] ]
+    },
+    "⚙️ Extract Keywords V2": {
+      "main": [ [ { "node": "↩️ Respond: Approved", "type": "main", "index": 0 }, { "node": "🎥 Search Pexels Video", "type": "main", "index": 0 } ] ]
+    },
+    "🗄️ Fetch Session": {
+      "main": [ [ { "node": "⚙️ Format Regenerate", "type": "main", "index": 0 } ] ]
+    },
+    "⚙️ Format Regenerate": {
+      "main": [ [ { "node": "🗄️ Get Trend Data", "type": "main", "index": 0 } ] ]
+    },
+
+    "🎥 Search Pexels Video": {
+      "main": [
+        [
+          {
+            "node": "📡 Django: Mix Video + TTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ Extract Instagram Video URL": {
+      "main": [
+        [
+          {
+            "node": "🗄️ Save Instagram Video to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🗄️ Save Instagram Video to DB": {
+      "main": [
+        [
+          {
+            "node": "📡 Notify Django: Video Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎯 Webhook: Instagram Video Approve": {
+      "main": [
+        [
+          {
+            "node": "❓ Instagram Video Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❓ Instagram Video Approved?": {
+      "main": [
+        [
+          {
+            "node": "🗄️ Mark Instagram Video Approved",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "↩️ Respond: Instagram Video Approved",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🗄️ Mark Instagram Video Declined",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🗄️ Mark Instagram Video Approved": {
+      "main": [
+        [
+          {
+            "node": "🗄️ Fetch Script for Instagram Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🗄️ Mark Instagram Video Declined": {
+      "main": [
+        [
+          {
+            "node": "↩️ Respond: Instagram Video Declined",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🗄️ Fetch Script for Instagram Post": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Prep Instagram Post Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ Prep Instagram Post Data": {
+      "main": [
+        [
+          {
+            "node": "📸 Create Instagram Container",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📸 Create Instagram Container": {
+      "main": [
+        [
+          {
+            "node": "⏱️ Wait 60 Seconds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏱️ Wait 60 Seconds": {
+      "main": [
+        [
+          {
+            "node": "📸 Publish to Instagram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📸 Publish to Instagram": {
+      "main": [
+        [
+          {
+            "node": "🗄️ Save Instagram Posted Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📡 Django: Mix Video + TTS": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Extract Instagram Video URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
