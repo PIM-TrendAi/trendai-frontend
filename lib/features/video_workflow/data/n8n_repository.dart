@@ -67,20 +67,67 @@ class N8nRepository {
     );
   }
 
-  Future<ScriptActionResponse> approveScript(String sessionId) =>
-      _service.submitScriptDecision(sessionId: sessionId, action: 'approve');
+  Future<ScriptActionResponse> approveScript(String sessionId, {String platform = 'tiktok'}) async {
+    if (platform == 'tiktok') {
+      return _service.submitScriptDecision(sessionId: sessionId, action: 'approve');
+    }
+    final res = await _djangoDio.post(
+      '/n8n/approve/script/',
+      data: {'session_id': sessionId, 'approved': true},
+    );
+    return ScriptActionResponse.fromJson(res.data as Map<String, dynamic>);
+  }
+  
+  Future<ScriptActionResponse> declineScript(String sessionId, {String platform = 'tiktok'}) async {
+    if (platform == 'tiktok') {
+      return _service.submitScriptDecision(sessionId: sessionId, action: 'decline');
+    }
+    final res = await _djangoDio.post(
+      '/n8n/approve/script/',
+      data: {'session_id': sessionId, 'approved': false},
+    );
+    return ScriptActionResponse.fromJson(res.data as Map<String, dynamic>);
+  }
 
-  Future<ScriptActionResponse> declineScript(String sessionId) =>
-      _service.submitScriptDecision(sessionId: sessionId, action: 'decline');
+  Future<VideoActionResponse> approveVideo(String sessionId, {String? videoId, String platform = 'tiktok'}) async {
+    if (platform == 'tiktok') {
+      return _service.submitVideoDecision(sessionId: sessionId, action: 'approve');
+    }
+    final res = await _djangoDio.post(
+      '/n8n/approve/video/',
+      data: {
+        'session_id': sessionId,
+        'video_id': videoId,
+        'approved': true,
+        'platform': platform,
+      },
+    );
+    return VideoActionResponse.fromJson(res.data as Map<String, dynamic>);
+  }
 
-  Future<VideoActionResponse> approveVideo(String sessionId) =>
-      _service.submitVideoDecision(sessionId: sessionId, action: 'approve');
+  Future<VideoActionResponse> declineVideo(String sessionId, {String? videoId, String platform = 'tiktok'}) async {
+    if (platform == 'tiktok') {
+      return _service.submitVideoDecision(sessionId: sessionId, action: 'decline');
+    }
+    final res = await _djangoDio.post(
+      '/n8n/approve/video/',
+      data: {
+        'session_id': sessionId,
+        'video_id': videoId,
+        'approved': false,
+        'platform': platform,
+      },
+    );
+    return VideoActionResponse.fromJson(res.data as Map<String, dynamic>);
+  }
 
-  Future<VideoActionResponse> declineVideo(String sessionId) =>
-      _service.submitVideoDecision(sessionId: sessionId, action: 'decline');
-
-  Future<VideoStatusResponse> checkVideoStatus(String sessionId) =>
-      _service.checkVideoStatus(sessionId: sessionId);
+  Future<VideoStatusResponse> checkVideoStatus(String sessionId, {String platform = 'tiktok'}) async {
+    if (platform == 'tiktok') {
+      return _service.checkVideoStatus(sessionId: sessionId);
+    }
+    final res = await _djangoDio.get('/n8n/sessions/$sessionId/');
+    return VideoStatusResponse.fromJson(res.data as Map<String, dynamic>);
+  }
 
   Future<List<CreatorVideoModel>> fetchMyVideos(String creatorId) =>
       _service.fetchMyVideos(creatorId: creatorId);

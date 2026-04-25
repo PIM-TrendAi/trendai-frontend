@@ -139,21 +139,19 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
   String _selectedPlatform = 'tiktok';
   String? _selectedNiche;
 
-  /// Triggers a fresh niche-based Facebook scrape via n8n, then refreshes the feed.
-  Future<void> _triggerFacebookScrape() async {
+  Future<void> _triggerScrape(String platform) async {
     final dio = ref.read(dioProvider);
     final categories = ref.read(authNotifierProvider).valueOrNull?.categories;
     final fallbackNiche = (categories != null && categories.isNotEmpty) ? categories.first : 'general';
     final niche = _selectedNiche ?? fallbackNiche;
     try {
-      await dio.post('/n8n/trigger-scrape/', data: {'platform': 'facebook', 'niche': niche});
+      await dio.post('/n8n/trigger-scrape/', data: {'platform': platform, 'niche': niche});
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Scraping Facebook "$niche" reels... 🔄')),
+          SnackBar(content: Text('Scraping $platform "$niche"... 🔄')),
         );
-        // Wait a moment then refresh the provider
         await Future.delayed(const Duration(seconds: 3));
-        if (mounted) ref.invalidate(_trendingVideosProvider((niche, 'facebook')));
+        if (mounted) ref.invalidate(_trendingVideosProvider((niche, platform)));
       }
     } catch (_) {}
   }
@@ -179,20 +177,7 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
       return;
     }
 
-    // For Instagram, YouTube, Facebook: go to Production Studio which handles
-    // the platform-specific workflow via Django → n8n.
-    if (_selectedPlatform != 'tiktok') {
-      if (!mounted) return;
-      final categories = ref.read(authNotifierProvider).valueOrNull?.categories;
-      final fallbackNiche = (categories != null && categories.isNotEmpty) ? categories.first : 'general';
-      final niche = _selectedNiche ?? fallbackNiche;
-      context.push(
-        '/ai-generator?niche=${Uri.encodeComponent(niche)}'
-        '&selectedVideoId=${video.videoId}'
-        '&platform=$_selectedPlatform',
-      );
-      return;
-    }
+    // All platforms: direct n8n webhook flow → script review screen
 
     // TikTok: direct n8n webhook flow → script review screen
     final profile = await ref.read(secureStorageProvider).readCreatorProfile();
@@ -359,7 +344,9 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
                             Text(
                               _selectedPlatform == 'facebook'
                                   ? 'No reels yet for "$currentNiche"'
-                                  : 'Coming soon',
+                                  : _selectedPlatform == 'threads'
+                                      ? 'No Threads posts yet for "$currentNiche"'
+                                      : 'Coming soon',
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
@@ -368,8 +355,8 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              _selectedPlatform == 'facebook'
-                                  ? 'Tap below to scrape fresh reels for your niche.'
+                              (_selectedPlatform == 'facebook' || _selectedPlatform == 'threads')
+                                  ? 'Tap below to scrape fresh posts for your niche.'
                                   : 'This platform is being integrated.\nCheck back soon!',
                               textAlign: TextAlign.center,
                               style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
@@ -377,12 +364,24 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
                             if (_selectedPlatform == 'facebook') ...[
                               const SizedBox(height: 16),
                               ElevatedButton.icon(
-                                onPressed: _triggerFacebookScrape,
+                                onPressed: () => _triggerScrape('facebook'),
                                 icon: const Icon(Icons.refresh_rounded, size: 18),
                                 label: const Text('Scrape Now'),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF1877F2),
                                   foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ],
+                            if (_selectedPlatform == 'threads') ...[
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                onPressed: () => _triggerScrape('threads'),
+                                icon: const Icon(Icons.refresh_rounded, size: 18),
+                                label: const Text('Scrape Now'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: Colors.black,
                                 ),
                               ),
                             ],

@@ -41,6 +41,13 @@ final _youtubeTrendsVideosProvider = FutureProvider<List<YouTubeVideoModel>>((re
   return list.map((e) => YouTubeVideoModel.fromJson(e as Map<String, dynamic>)).toList();
 });
 
+final _threadsPostsProvider = FutureProvider.autoDispose<List<ThreadsPostModel>>((ref) async {
+  final dio = ref.read(dioProvider);
+  final res = await dio.get('/trends/threads-posts/');
+  final list = res.data['results'] as List? ?? res.data as List;
+  return list.map((e) => ThreadsPostModel.fromJson(e as Map<String, dynamic>)).toList();
+});
+
 /// Parses human-readable counts like "1.2M", "450K", "3B" → integer.
 int _parseCount(String s) {
   final v = s.trim().toUpperCase().replaceAll(',', '');
@@ -527,11 +534,15 @@ class _MixedVideoCard extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             video.thumbnailUrl.isNotEmpty
-                ? Image.network(video.thumbnailUrl, fit: BoxFit.cover,
+                ? Image.network(
+                    video.thumbnailUrl,
+                    fit: BoxFit.cover,
+                    headers: video.platform == 'tiktok' ? {'Referer': 'https://www.tiktok.com/'} : null,
                     errorBuilder: (_, __, ___) => Container(
                       color: color.withValues(alpha: 0.10),
                       child: Center(child: Icon(_platformIcons[video.platform] ?? Icons.play_circle_outline_rounded, color: color, size: 40)),
-                    ))
+                    ),
+                  )
                 : Container(
                     color: color.withValues(alpha: 0.10),
                     child: Center(child: Icon(_platformIcons[video.platform] ?? Icons.play_circle_outline_rounded, color: color, size: 40)),
@@ -713,6 +724,7 @@ class _TikTokVideoCard extends StatelessWidget {
                 ? Image.network(
                     video.thumbnailUrl,
                     fit: BoxFit.cover,
+                    headers: const {'Referer': 'https://www.tiktok.com/'},
                     errorBuilder: (_, __, ___) => _placeholder(),
                   )
                 : _placeholder(),
@@ -1520,6 +1532,220 @@ class _FacebookTrendCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                       decoration: BoxDecoration(color: _fbBlue.withValues(alpha: 0.25), borderRadius: BorderRadius.circular(4)),
+                      child: Text(niche, style: const TextStyle(fontSize: 9, color: Colors.white), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Threads Trends Section ───────────────────────────────────────────────────
+
+class _ThreadsTrendsSection extends ConsumerStatefulWidget {
+  const _ThreadsTrendsSection({required this.sort});
+  final String sort;
+
+  @override
+  ConsumerState<_ThreadsTrendsSection> createState() => _ThreadsTrendsSectionState();
+}
+
+class _ThreadsTrendsSectionState extends ConsumerState<_ThreadsTrendsSection> {
+  bool _isScraping = false;
+
+  Future<void> _triggerScrape() async {
+    setState(() => _isScraping = true);
+    try {
+      final dio = ref.read(dioProvider);
+      await dio.post('/trends/threads-scrape/', data: {'niche': 'general'});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Scraping Threads posts...')),
+        );
+        await Future.delayed(const Duration(seconds: 4));
+        if (mounted) ref.invalidate(_threadsPostsProvider);
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _isScraping = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final async = ref.watch(_threadsPostsProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 12),
+        async.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (_, __) => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(child: Text('Could not load posts', style: TextStyle(color: AppColors.textMuted))),
+          ),
+          data: (posts) {
+            if (posts.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Column(
+                  children: [
+                    const Text('No Threads posts found', style: TextStyle(color: AppColors.textMuted)),
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      onPressed: _isScraping ? null : _triggerScrape,
+                      icon: _isScraping
+                          ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                          : const Icon(Icons.refresh_rounded, size: 16),
+                      label: Text(_isScraping ? 'Scraping...' : 'Scrape Now'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+            final sorted = [...posts];
+            if (widget.sort == 'views' || widget.sort == 'likes') {
+              sorted.sort((a, b) => b.likeCount.compareTo(a.likeCount));
+            } else if (widget.sort == 'recent') {
+              sorted.sort((a, b) => (b.createdAt ?? '').compareTo(a.createdAt ?? ''));
+            }
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 9 / 16,
+              ),
+              itemCount: sorted.length,
+              itemBuilder: (_, i) => _ThreadsTrendCard(post: sorted[i]),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _ThreadsTrendCard extends StatelessWidget {
+  const _ThreadsTrendCard({required this.post});
+  final ThreadsPostModel post;
+
+  static const _color = Color(0xFF1C1C1C);
+
+  ({String label, Color color}) _badge(int likes) {
+    if (likes >= 100000) return (label: '🔥 Hot',    color: Colors.orange);
+    if (likes >= 10000)  return (label: '📈 Rising', color: AppColors.success);
+    return                      (label: '➡ Steady',  color: AppColors.textMuted);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasThumb = post.thumbnailUrl != null && post.thumbnailUrl!.isNotEmpty;
+    final hasUrl = post.postUrl != null && post.postUrl!.isNotEmpty;
+    final username = post.username ?? '';
+    final title = (post.text != null && post.text!.isNotEmpty) ? post.text! : 'Threads Post';
+    final niche = (post.niche != null && post.niche!.isNotEmpty) ? post.niche! : 'threads';
+    final badge = _badge(post.likeCount);
+
+    return GestureDetector(
+      onTap: hasUrl
+          ? () => launchUrl(Uri.parse(post.postUrl!), mode: LaunchMode.externalApplication)
+          : () => context.push(
+                '/ai-generator?niche=${Uri.encodeComponent(niche)}&selectedVideoId=${post.postId}&platform=threads'),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: Colors.white.withValues(alpha: 0.05),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        clipBehavior: Clip.hardEdge,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            hasThumb
+                ? Image.network(post.thumbnailUrl!, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: _color.withValues(alpha: 0.30),
+                      child: const Center(child: Icon(Icons.alternate_email_rounded, color: Colors.white54, size: 40)),
+                    ))
+                : Container(
+                    color: _color.withValues(alpha: 0.30),
+                    child: const Center(child: Icon(Icons.alternate_email_rounded, color: Colors.white54, size: 40)),
+                  ),
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Container(
+                height: 160,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                    colors: [Colors.black.withValues(alpha: 0.85), Colors.transparent],
+                  ),
+                ),
+              ),
+            ),
+            if (hasUrl)
+              Positioned(
+                top: 8, right: 8,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(6)),
+                  child: const Icon(Icons.open_in_new_rounded, size: 13, color: Colors.white),
+                ),
+              ),
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (username.isNotEmpty)
+                      Text('@$username',
+                          style: const TextStyle(fontSize: 10, color: Colors.white70, fontWeight: FontWeight.w700),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: badge.color.withValues(alpha: 0.20),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: badge.color.withValues(alpha: 0.50)),
+                      ),
+                      child: Text(badge.label,
+                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: badge.color)),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white, height: 1.3)),
+                    if (post.likeCount > 0) ...[
+                      const SizedBox(height: 6),
+                      Row(children: [
+                        const Icon(Icons.favorite_rounded, size: 12, color: Colors.white70),
+                        const SizedBox(width: 2),
+                        Text(_formatCount(post.likeCount), style: const TextStyle(fontSize: 10, color: Colors.white70)),
+                      ]),
+                    ],
+                    const SizedBox(height: 5),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
                       child: Text(niche, style: const TextStyle(fontSize: 9, color: Colors.white), maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
                   ],

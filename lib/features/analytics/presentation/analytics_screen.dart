@@ -75,6 +75,9 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   bool _fbWsLoading = true;
   String? _fbWsError;
 
+  // Selected Platform (Defaults to TikTok)
+  String _selectedPlatform = 'TikTok';
+
   @override
   void initState() {
     super.initState();
@@ -204,95 +207,70 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           Column(
             children: [
               const TrendAIAppBar(title: 'Analytics', subtitle: 'Last 7 days'),
+              const SizedBox(height: 10),
+              
+              // ── Platform Selector
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    _PlatformChip(label: 'TikTok', icon: Icons.play_circle_rounded, selected: _selectedPlatform == 'TikTok', 
+                      onTap: () => setState(() => _selectedPlatform = 'TikTok')),
+                    _PlatformChip(label: 'Facebook', icon: Icons.facebook_rounded, selected: _selectedPlatform == 'Facebook', 
+                      onTap: () => setState(() => _selectedPlatform = 'Facebook')),
+                    _PlatformChip(label: 'Instagram', icon: Icons.camera_alt_rounded, selected: _selectedPlatform == 'Instagram', 
+                      onTap: () => setState(() => _selectedPlatform = 'Instagram')),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
               Expanded(
                 child: SingleChildScrollView(
                   controller: _scrollCtrl,
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
 
-                      // ── TikTok Live Stats section (WebSocket)
-                      _TikTokLiveSection(
-                        videos: _videos,
-                        connected: _wsConnected,
-                        loading: _wsLoading,
-                        error: _wsError,
-                        onRetry: _connectWs,
-                      ),
-                      const SizedBox(height: 24),
-
-                      // ── Instagram Stats section (REST API)
-                      instagramAsync.when(
-                        data: (igData) => _InstagramStatsSection(data: igData),
-                        loading: () => const SizedBox.shrink(),
-                        error: (_, __) => const SizedBox.shrink(),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // ── Facebook Live Stats section (WebSocket + REST)
-                      facebookAsync.when(
-                        data: (fbData) => _FacebookLiveSection(
-                          data: fbData,
-                          posts: _fbPosts,
-                          connected: _fbWsConnected,
-                          loading: _fbWsLoading,
-                          error: _fbWsError,
-                          onRetry: _connectFbWs,
+                      // ── TikTok Section
+                      if (_selectedPlatform == 'TikTok') ...[
+                        _TikTokLiveSection(
+                          videos: _videos,
+                          connected: _wsConnected,
+                          loading: _wsLoading,
+                          error: _wsError,
+                          onRetry: _connectWs,
                         ),
-                        loading: () => const SizedBox.shrink(),
-                        error: (_, __) => const SizedBox.shrink(),
-                      ),
-                      const SizedBox(height: 24),
+                        const SizedBox(height: 24),
+                      ],
 
-                      // ── Stat Cards
-                      summaryAsync.when(
-                        data: (summary) => GridView.count(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                          childAspectRatio: 1.4,
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          children: [
-                            _StatCard(label: '👁 Total Views', value: summary['total_views']?['label'] ?? '--', trend: summary['total_views']?['trend']),
-                            _StatCard(label: '💥 Engagement', value: summary['engagement']?['label'] ?? '--', trend: summary['engagement']?['trend']),
-                            _StatCard(label: '👥 Followers', value: summary['followers']?['label'] ?? '--', trend: summary['followers']?['trend']),
-                            _StatCard(label: '🔥 Viral Score', value: summary['viral_score']?['label'] ?? '--', trend: summary['viral_score']?['trend']),
-                          ],
+                      // ── Instagram Section
+                      if (_selectedPlatform == 'Instagram')
+                        instagramAsync.when(
+                          data: (igData) => Column(children: [_InstagramStatsSection(data: igData), const SizedBox(height: 24)]),
+                          loading: () => const Center(child: CircularProgressIndicator()),
+                          error: (_, __) => const SizedBox.shrink(),
                         ),
-                        loading: () => const Center(child: CircularProgressIndicator()),
-                        error: (_, __) => const SizedBox.shrink(),
-                      ),
-                      const SizedBox(height: 24),
 
-                      // ── Engagement Trend
-                      Text('Engagement Trend',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 14),
-                      engagementAsync.when(
-                        data: (data) => GlassCard(child: SizedBox(height: 160, child: _EngagementLineChart(data: data))),
-                        loading: () => const Center(child: CircularProgressIndicator()),
-                        error: (_, __) => const SizedBox.shrink(),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // ── Platform Performance
-                      Text('Platform Performance',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 14),
-                      platformAsync.when(
-                        data: (data) => GlassCard(child: SizedBox(height: 180, child: _PlatformBarChart(data: data))),
-                        loading: () => const Center(child: CircularProgressIndicator()),
-                        error: (_, __) => const SizedBox.shrink(),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // ── Best Posting Times
-                      Text('Best Posting Times',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 14),
-                      GlassCard(child: _PostingHeatmap()),
+                      // ── Facebook Section
+                      if (_selectedPlatform == 'Facebook')
+                        facebookAsync.when(
+                          data: (fbData) => Column(children: [
+                            _FacebookLiveSection(
+                              data: fbData,
+                              posts: _fbPosts,
+                              connected: _fbWsConnected,
+                              loading: _fbWsLoading,
+                              error: _fbWsError,
+                              onRetry: _connectFbWs,
+                            ),
+                            const SizedBox(height: 24),
+                          ]),
+                          loading: () => const Center(child: CircularProgressIndicator()),
+                          error: (_, __) => const SizedBox.shrink(),
+                        ),
                     ],
                   ),
                 ),
@@ -351,6 +329,19 @@ class _TikTokLiveSection extends StatelessWidget {
         ),
         const SizedBox(height: 14),
 
+        // Summary row for TikTok
+        if (videos.isNotEmpty) ...[
+          Row(
+            children: [
+              _TKSortOfMiniStat(icon: Icons.play_arrow_rounded, value: _fmt(videos.fold(0, (sum, v) => sum + (v['views'] as int? ?? 0))), label: 'Views'),
+              _TKSortOfMiniStat(icon: Icons.favorite_rounded, value: _fmt(videos.fold(0, (sum, v) => sum + (v['likes'] as int? ?? 0))), label: 'Likes', color: AppColors.tikTok),
+              _TKSortOfMiniStat(icon: Icons.comment_rounded, value: _fmt(videos.fold(0, (sum, v) => sum + (v['comments'] as int? ?? 0))), label: 'Comments'),
+              _TKSortOfMiniStat(icon: Icons.share_rounded, value: _fmt(videos.fold(0, (sum, v) => sum + (v['shares'] as int? ?? 0))), label: 'Shares'),
+            ],
+          ),
+          const SizedBox(height: 14),
+        ],
+
         // Content
         if (loading && videos.isEmpty)
           const Center(child: Padding(
@@ -396,6 +387,38 @@ class _TikTokLiveSection extends StatelessWidget {
       case 'tiktok_not_connected': return 'TikTok not connected — go to Profile to connect';
       default: return 'Could not reach server — retrying…';
     }
+  }
+
+  String _fmt(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return n.toString();
+  }
+}
+
+class _TKSortOfMiniStat extends StatelessWidget {
+  const _TKSortOfMiniStat({required this.icon, required this.value, required this.label, this.color = AppColors.primary});
+  final IconData icon;
+  final String value;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GlassCard(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+        child: Column(
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(height: 6),
+            Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+            const SizedBox(height: 2),
+            Text(label, style: const TextStyle(fontSize: 8, color: AppColors.textMuted)),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -459,8 +482,14 @@ class _VideoStatCard extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: thumbnail.isNotEmpty
-                  ? Image.network(thumbnail, width: 72, height: 72, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _thumb())
+                  ? Image.network(
+                      thumbnail,
+                      width: 72,
+                      height: 72,
+                      fit: BoxFit.cover,
+                      headers: const {'Referer': 'https://www.tiktok.com/'},
+                      errorBuilder: (_, __, ___) => _thumb(),
+                    )
                   : _thumb(),
             ),
             const SizedBox(width: 12),
@@ -953,9 +982,9 @@ class _FacebookLiveSection extends StatelessWidget {
 
         if (restConnected) ...[
           Row(children: [
-            _FbMiniStat(icon: Icons.people_rounded,   value: _fmtN(summary['fans'] as int? ?? 0),           label: 'Fans'),
+            _FbMiniStat(icon: Icons.people_rounded,   value: _fmtN(summary['followers'] as int? ?? 0),      label: 'Followers'),
             _FbMiniStat(icon: Icons.favorite_rounded, value: _fmtN(summary['total_likes'] as int? ?? 0),    label: 'Likes'),
-            _FbMiniStat(icon: Icons.comment_rounded,  value: _fmtN(summary['total_comments'] as int? ?? 0), label: 'Comments'),
+            _FbMiniStat(icon: Icons.play_arrow_rounded, value: _fmtN(summary['total_views'] as int? ?? 0),    label: 'Views'),
             _FbMiniStat(icon: Icons.share_rounded,    value: _fmtN(summary['total_shares'] as int? ?? 0),   label: 'Shares'),
           ]),
           const SizedBox(height: 14),
@@ -1044,6 +1073,7 @@ class _FbPostCard extends StatelessWidget {
     final comments    = post['comments']     as int?    ?? 0;
     final shares      = post['shares']       as int?    ?? 0;
     final impressions = post['impressions']  as int?    ?? 0;
+    final views       = post['views']        as int?    ?? 0;
     final thumbnail   = post['thumbnail_url'] as String? ?? '';
     final permalink   = post['permalink']    as String? ?? '';
 
@@ -1076,11 +1106,10 @@ class _FbPostCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 7),
                     Wrap(spacing: 10, runSpacing: 5, children: [
+                      _fbChip(Icons.play_arrow_rounded, _fmt(views),        'views',    color: AppColors.tikTok),
                       _fbChip(Icons.favorite_rounded,   _fmt(likes),        'likes',    color: _facebookColor),
                       _fbChip(Icons.comment_rounded,    _fmt(comments),     'comments'),
-                      _fbChip(Icons.share_rounded,      _fmt(shares),       'shares'),
-                      if (impressions > 0)
-                        _fbChip(Icons.visibility_rounded, _fmt(impressions), 'reach'),
+                      _fbChip(Icons.visibility_rounded, _fmt(impressions), 'reach'),
                     ]),
                   ],
                 ),
@@ -1112,5 +1141,57 @@ class _FbPostCard extends StatelessWidget {
     if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
     if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
     return n.toString();
+  }
+}
+
+// ─────────────────────────────────────────────
+// Platform Chip Selector
+// ─────────────────────────────────────────────
+class _PlatformChip extends StatelessWidget {
+  const _PlatformChip({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.only(right: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: selected ? AppColors.gradientPrimaryHorizontal : null,
+          color: selected ? null : Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? Colors.transparent : Colors.white.withValues(alpha: 0.1),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: selected ? Colors.white : AppColors.textMuted),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected ? Colors.white : AppColors.textMuted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

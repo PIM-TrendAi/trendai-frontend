@@ -52,8 +52,8 @@ class _VideoReviewScreenState extends ConsumerState<VideoReviewScreen> {
     if (state.status == WorkflowStatus.done) {
       ref.read(workflowProvider.notifier).reset();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Video posted to TikTok!'),
+        SnackBar(
+          content: Text('Video posted to ${state.platform?[0].toUpperCase()}${state.platform?.substring(1)}!'),
           backgroundColor: AppColors.success,
         ),
       );
@@ -79,6 +79,12 @@ class _VideoReviewScreenState extends ConsumerState<VideoReviewScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+          onPressed: () {
+            context.go('/script-review');
+          },
+        ),
       ),
       body: Stack(
         children: [
@@ -155,7 +161,7 @@ class _VideoReviewScreenState extends ConsumerState<VideoReviewScreen> {
                       Expanded(
                         flex: 2,
                         child: GradientButton(
-                          label: 'Post to TikTok',
+                          label: 'Post to ${state.platform?[0].toUpperCase()}${state.platform?.substring(1) ?? "TikTok"}',
                           onPressed: isPosting || isRegenerating
                               ? () {}
                               : _approve,

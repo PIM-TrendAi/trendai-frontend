@@ -58,7 +58,7 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
     }
   }
 
-  Future<void> register(String name, String email, String password) async {
+  Future<void> register(String name, String email, String password, String recaptchaToken) async {
     state = const AsyncValue.loading();
     try {
       final res = await _dio.post('/auth/register/', data: {
@@ -66,6 +66,7 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
         'email': email,
         'password': password,
         'confirm_password': password,
+        'recaptcha_token': recaptchaToken,
       });
       final user = UserModel.fromJson(res.data as Map<String, dynamic>);
       await _saveSession(user);
@@ -101,6 +102,34 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
   Future<void> logout() async {
     await _storage.clearAll();
     state = const AsyncValue.data(null);
+  }
+
+  Future<void> requestPasswordReset(String email, String recaptchaToken) async {
+    try {
+      await _dio.post('auth/password-reset/', data: {
+        'email': email,
+        'recaptcha_token': recaptchaToken,
+      });
+    } on DioException catch (e) {
+      throw _errorMsg(e);
+    }
+  }
+
+  Future<void> confirmPasswordReset({
+    required String uid,
+    required String token,
+    required String newPassword,
+  }) async {
+    try {
+      await _dio.post('auth/password-reset/confirm/', data: {
+        'uid': uid,
+        'token': token,
+        'new_password': newPassword,
+        'confirm_password': newPassword,
+      });
+    } on DioException catch (e) {
+      throw _errorMsg(e);
+    }
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────

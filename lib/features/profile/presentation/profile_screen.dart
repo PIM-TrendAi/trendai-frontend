@@ -24,9 +24,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   bool _tiktokLoading = false;
   bool _instagramLoading = false;
   bool _facebookLoading = false;
+  bool _youtubeLoading = false;
+  bool _threadsLoading = false;
   bool _tiktokConnected = false;
   bool _instagramConnected = false;
   bool _facebookConnected = false;
+  bool _youtubeConnected = false;
+  bool _threadsConnected = false;
   final _scrollCtrl = ScrollController();
 
   @override
@@ -36,6 +40,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     _checkTikTokStatus();
     _checkInstagramStatus();
     _checkFacebookStatus();
+    _checkYouTubeStatus();
+    _checkThreadsStatus();
   }
 
   @override
@@ -45,6 +51,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       _checkTikTokStatus();
       _checkInstagramStatus();
       _checkFacebookStatus();
+      _checkYouTubeStatus();
+      _checkThreadsStatus();
     }
   }
 
@@ -87,6 +95,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       final dio = ref.read(dioProvider);
       final res = await dio.get('/platforms/facebook/status/');
       if (mounted) setState(() => _facebookConnected = res.data['connected'] == true);
+    } catch (_) {}
+  }
+
+  Future<void> _checkYouTubeStatus() async {
+    try {
+      final dio = ref.read(dioProvider);
+      final res = await dio.get('/platforms/youtube/status/');
+      if (mounted) setState(() => _youtubeConnected = res.data['connected'] == true);
+    } catch (_) {}
+  }
+
+  Future<void> _checkThreadsStatus() async {
+    try {
+      final dio = ref.read(dioProvider);
+      final res = await dio.get('/platforms/threads/status/');
+      if (mounted) setState(() => _threadsConnected = res.data['connected'] == true);
     } catch (_) {}
   }
 
@@ -367,6 +391,88 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                                 }
                               } finally {
                                 if (mounted) setState(() => _facebookLoading = false);
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          _PlatformCard(
+                            name: 'YouTube',
+                            isConnected: _youtubeConnected,
+                            iconColor: const Color(0xFFFF0000),
+                            iconData: Icons.play_circle_filled_rounded,
+                            isPrimaryAction: !_youtubeConnected,
+                            isLoading: _youtubeLoading,
+                            onAction: () async {
+                              if (_youtubeLoading) return;
+                              setState(() => _youtubeLoading = true);
+                              try {
+                                final dio = ref.read(dioProvider);
+                                if (_youtubeConnected) {
+                                  await dio.post('/platforms/youtube/disconnect/');
+                                  setState(() => _youtubeConnected = false);
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('YouTube disconnected.')),
+                                    );
+                                  }
+                                } else {
+                                  await dio.post('/platforms/youtube/connect/', data: {'access_token': 'manual_token'});
+                                  setState(() => _youtubeConnected = true);
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('YouTube connected! 🎉')),
+                                    );
+                                  }
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Error: $e')),
+                                  );
+                                }
+                              } finally {
+                                if (mounted) setState(() => _youtubeLoading = false);
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          _PlatformCard(
+                            name: 'Threads',
+                            isConnected: _threadsConnected,
+                            iconColor: const Color(0xFF000000),
+                            iconData: Icons.alternate_email_rounded,
+                            isPrimaryAction: !_threadsConnected,
+                            isLoading: _threadsLoading,
+                            onAction: () async {
+                              if (_threadsLoading) return;
+                              setState(() => _threadsLoading = true);
+                              try {
+                                final dio = ref.read(dioProvider);
+                                if (_threadsConnected) {
+                                  await dio.post('/platforms/threads/disconnect/');
+                                  setState(() => _threadsConnected = false);
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Threads disconnected.')),
+                                    );
+                                  }
+                                } else {
+                                  await dio.post('/platforms/threads/connect/', data: {'access_token': 'manual_threads_token'});
+                                  setState(() => _threadsConnected = true);
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Threads connected! 🎉')),
+                                    );
+                                  }
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Error: $e')),
+                                  );
+                                }
+                              } finally {
+                                if (mounted) setState(() => _threadsLoading = false);
                               }
                             },
                           ),

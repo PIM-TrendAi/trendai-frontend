@@ -18,6 +18,7 @@ class WorkflowState {
     this.sessionId,
     this.scriptContent,
     this.videoUrl,
+    this.videoId,
     this.platform,
     this.status = WorkflowStatus.idle,
     this.errorMessage,
@@ -27,6 +28,7 @@ class WorkflowState {
   final String? sessionId;
   final String? scriptContent;
   final String? videoUrl;
+  final String? videoId;
   final String? platform;
   final WorkflowStatus status;
   final String? errorMessage;
@@ -36,6 +38,7 @@ class WorkflowState {
     String? sessionId,
     String? scriptContent,
     String? videoUrl,
+    String? videoId,
     String? platform,
     WorkflowStatus? status,
     String? errorMessage,
@@ -45,6 +48,7 @@ class WorkflowState {
       sessionId: sessionId ?? this.sessionId,
       scriptContent: scriptContent ?? this.scriptContent,
       videoUrl: videoUrl ?? this.videoUrl,
+      videoId: videoId ?? this.videoId,
       platform: platform ?? this.platform,
       status: status ?? this.status,
       errorMessage: errorMessage ?? this.errorMessage,
@@ -106,7 +110,7 @@ class WorkflowNotifier extends StateNotifier<WorkflowState> {
     if (sessionId == null) return;
     state = state.copyWith(status: WorkflowStatus.generatingVideo);
     try {
-      await _repo.approveScript(sessionId);
+      await _repo.approveScript(sessionId, platform: state.platform ?? 'tiktok');
       // status stays generatingVideo — polling screen takes over
     } catch (e) {
       state = state.copyWith(
@@ -119,13 +123,10 @@ class WorkflowNotifier extends StateNotifier<WorkflowState> {
   Future<void> declineScript() async {
     final sessionId = state.sessionId;
     if (sessionId == null) return;
-    state = state.copyWith(status: WorkflowStatus.generatingScript);
+    state = state.copyWith(status: WorkflowStatus.generatingScript, scriptContent: null);
     try {
-      final res = await _repo.declineScript(sessionId);
-      state = state.copyWith(
-        scriptContent: res.scriptContent ?? state.scriptContent,
-        status: WorkflowStatus.pendingScriptReview,
-      );
+      await _repo.declineScript(sessionId, platform: state.platform ?? 'tiktok');
+      // status stays generatingScript — polling screen takes over
     } catch (e) {
       state = state.copyWith(
         status: WorkflowStatus.error,
@@ -138,10 +139,11 @@ class WorkflowNotifier extends StateNotifier<WorkflowState> {
     final sessionId = state.sessionId;
     if (sessionId == null) return;
     try {
-      final res = await _repo.checkVideoStatus(sessionId);
+      final res = await _repo.checkVideoStatus(sessionId, platform: state.platform ?? 'tiktok');
       if (res.status == 'ready' && res.videoUrl != null) {
         state = state.copyWith(
           videoUrl: res.videoUrl,
+          videoId: res.videoId,
           isFallback: res.isFallback,
           status: WorkflowStatus.pendingVideoReview,
         );
@@ -161,7 +163,7 @@ class WorkflowNotifier extends StateNotifier<WorkflowState> {
     if (sessionId == null) return;
     state = state.copyWith(status: WorkflowStatus.posting);
     try {
-      await _repo.approveVideo(sessionId);
+      await _repo.approveVideo(sessionId, videoId: state.videoId, platform: state.platform ?? 'tiktok');
       state = state.copyWith(status: WorkflowStatus.done);
     } catch (e) {
       state = state.copyWith(
@@ -176,7 +178,7 @@ class WorkflowNotifier extends StateNotifier<WorkflowState> {
     if (sessionId == null) return;
     state = state.copyWith(status: WorkflowStatus.generatingVideo);
     try {
-      await _repo.declineVideo(sessionId);
+      await _repo.declineVideo(sessionId, videoId: state.videoId, platform: state.platform ?? 'tiktok');
       // goes back to polling
     } catch (e) {
       state = state.copyWith(

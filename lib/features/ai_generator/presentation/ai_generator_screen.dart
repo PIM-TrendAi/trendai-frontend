@@ -9,6 +9,9 @@ import 'package:dio/dio.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../shared/widgets/shared_widgets.dart';
+import 'web_video_stub.dart'
+  if (dart.library.html) 'web_video_impl.dart'
+  if (dart.library.io) 'mobile_video_impl.dart';
 
 final _videoGenerationStatusProvider =
     StateProvider<Map<String, dynamic>?>((_) => null);
@@ -415,13 +418,14 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
                                   height: 1.1),
                             ),
                             const SizedBox(height: 24),
-                            if (videoStatus == null ||
-                                videoStatus['status'] == 'declined')
+                            if (videoStatus == null || videoStatus['status'] == 'declined') ...[
+                              const SizedBox(height: 24),
                               GradientButton(
                                 label: 'Lancer la Production 🎬',
                                 onPressed: _startGeneration,
                                 isLoading: _loading,
                               ),
+                            ],
                           ],
                         ),
                       ),

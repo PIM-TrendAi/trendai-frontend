@@ -122,7 +122,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ],
                         ),
                         TextButton(
-                          onPressed: () {},
+                          onPressed: () => context.push('/forgot-password'),
                           child: const Text('Forgot password?',
                               style: TextStyle(color: AppColors.primary, fontSize: 13)),
                         ),

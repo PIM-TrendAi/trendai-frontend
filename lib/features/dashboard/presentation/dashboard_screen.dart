@@ -267,7 +267,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     Text('Multi-Platform Heatmap',
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 14),
-                    _PlatformHeatmap(),
+                    summaryAsync.when(
+                      data: (summary) => _PlatformHeatmap(heatmap: summary['heatmap']),
+                      loading: () => const _PlatformHeatmap(heatmap: null),
+                      error: (_, __) => const _PlatformHeatmap(heatmap: null),
+                    ),
                     const SizedBox(height: 28),
 
                     // ── Recommendations
@@ -592,20 +596,24 @@ class _DashboardVideoCard extends StatelessWidget {
 
 // ── Platform Heatmap
 class _PlatformHeatmap extends StatelessWidget {
-  final _platforms = const [
-    ('TikTok', 92, AppColors.tikTok),
-    ('Instagram', 85, AppColors.instagram),
-    ('YouTube', 78, AppColors.youtube),
-    ('Facebook', 65, AppColors.facebook),
-    ('X', 71, AppColors.x),
-  ];
+  const _PlatformHeatmap({required this.heatmap});
+  final Map<String, dynamic>? heatmap;
 
   @override
   Widget build(BuildContext context) {
+    final platforms = [
+      ('TikTok',    AppColors.tikTok),
+      ('Instagram', AppColors.instagram),
+      ('YouTube',   AppColors.youtube),
+      ('Facebook',  AppColors.facebook),
+      ('X',         AppColors.x),
+    ];
+
     return GlassCard(
       child: Column(
-        children: _platforms.map((p) {
-          final (name, score, color) = p;
+        children: platforms.map((p) {
+          final (name, color) = p;
+          final score = (heatmap?[name] as num?)?.toInt() ?? 0;
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 6),
             child: Row(

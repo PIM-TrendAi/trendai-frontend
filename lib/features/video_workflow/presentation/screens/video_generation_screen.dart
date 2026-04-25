@@ -62,6 +62,19 @@ class _VideoGenerationScreenState
     final timedOut = _elapsedSeconds >= _maxWaitSeconds;
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text(''),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+          onPressed: () {
+            // Stop polling and go back to script review
+            _timer?.cancel();
+            context.go('/script-review');
+          },
+        ),
+      ),
       body: Stack(
         children: [
           const AnimatedParticleBackground(count: 15),

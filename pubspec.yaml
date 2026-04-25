@@ -49,6 +49,9 @@ dependencies:
   # WebSocket (real-time TikTok stats)
   web_socket_channel: ^2.4.0
 
+  # WebView for reCAPTCHA support
+  webview_flutter: ^4.10.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

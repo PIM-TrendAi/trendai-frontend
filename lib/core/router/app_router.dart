@@ -22,6 +22,8 @@ import '../../features/instagram/presentation/screens/instagram_trends_screen.da
 import '../../features/facebook/presentation/screens/facebook_engine_screen.dart';
 import '../../features/youtube/presentation/screens/youtube_engine_screen.dart';
 import '../../features/ai_generator/presentation/ai_generator_screen.dart';
+import '../../features/auth/presentation/screens/forgot_password_screen.dart';
+import '../../features/auth/presentation/screens/reset_password_screen.dart';
 import '../storage/secure_storage.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -40,6 +42,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           state.matchedLocation == '/onboarding-3' ||
           state.matchedLocation == '/login' ||
           state.matchedLocation == '/signup' ||
+          state.matchedLocation == '/forgot-password' ||
+          state.matchedLocation == '/reset-password' ||
           state.matchedLocation == '/category-selection';
       if (!hasToken && !isAuthPage) return '/splash';
       return null;
@@ -51,6 +55,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/onboarding-3', builder: (_, __) => const OnboardingScreen(page: 3)),
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/signup', builder: (_, __) => const SignUpScreen()),
+      GoRoute(path: '/forgot-password', builder: (_, __) => const ForgotPasswordScreen()),
+      GoRoute(
+        path: '/reset-password',
+        builder: (_, state) => ResetPasswordScreen(
+          uid: state.uri.queryParameters['uid'] ?? '',
+          token: state.uri.queryParameters['token'] ?? '',
+        ),
+      ),
       GoRoute(
         path: '/category-selection',
         builder: (_, state) => CategorySelectionScreen(
