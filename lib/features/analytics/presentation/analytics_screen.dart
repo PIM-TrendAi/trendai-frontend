@@ -546,7 +546,7 @@ class _VideoStatCard extends StatelessWidget {
 
 // ── Stat card
 class _StatCard extends StatelessWidget {
-  const _StatCard({required this.label, required this.value, this.trend});
+  const _StatCard({required this.label, required this.value}) : trend = null;
   final String label;
   final String value;
   final String? trend;

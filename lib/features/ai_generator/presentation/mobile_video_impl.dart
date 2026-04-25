@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
-import '../../../core/theme/app_theme.dart';
 
 /// Mobile implementation using video_player plugin.
 class WebVideoPlayer extends StatefulWidget {

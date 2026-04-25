@@ -252,3 +252,42 @@ class YouTubeVideoModel {
     );
   }
 }
+
+/// ThreadsPost model — mirrors backend Threads post response.
+class ThreadsPostModel {
+  final int id;
+  final String postId;
+  final String? username;
+  final String? text;
+  final String? thumbnailUrl;
+  final String? postUrl;
+  final int likeCount;
+  final String? niche;
+  final String? createdAt;
+
+  const ThreadsPostModel({
+    required this.id,
+    required this.postId,
+    this.username,
+    this.text,
+    this.thumbnailUrl,
+    this.postUrl,
+    this.likeCount = 0,
+    this.niche,
+    this.createdAt,
+  });
+
+  factory ThreadsPostModel.fromJson(Map<String, dynamic> json) {
+    return ThreadsPostModel(
+      id: json['id'] as int,
+      postId: json['post_id'] as String,
+      username: json['username'] as String?,
+      text: json['text'] as String?,
+      thumbnailUrl: json['thumbnail_url'] as String?,
+      postUrl: json['post_url'] as String?,
+      likeCount: json['like_count'] as int? ?? 0,
+      niche: json['niche'] as String?,
+      createdAt: json['created_at'] as String?,
+    );
+  }
+}
