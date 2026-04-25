@@ -106,7 +106,7 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
 
   Future<void> requestPasswordReset(String email, String recaptchaToken) async {
     try {
-      await _dio.post('auth/password-reset/', data: {
+      await _dio.post('/auth/password-reset/', data: {
         'email': email,
         'recaptcha_token': recaptchaToken,
       });
@@ -121,7 +121,7 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
     required String newPassword,
   }) async {
     try {
-      await _dio.post('auth/password-reset/confirm/', data: {
+      await _dio.post('/auth/password-reset/confirm/', data: {
         'uid': uid,
         'token': token,
         'new_password': newPassword,
