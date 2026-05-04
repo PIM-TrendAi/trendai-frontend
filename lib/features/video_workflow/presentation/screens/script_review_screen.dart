@@ -98,7 +98,7 @@ class _ScriptReviewScreenState extends ConsumerState<ScriptReviewScreen> {
         '/n8n/sessions/latest/',
         queryParameters: {'platform': platform},
       );
-      final data = res.data as Map<String, dynamic>;
+      final data = res.data is Map<String, dynamic> ? res.data as Map<String, dynamic> : <String, dynamic>{};
       final sessionId =
           (data['session_id'] ?? data['sessionId'])?.toString().trim();
 
@@ -151,10 +151,14 @@ class _ScriptReviewScreenState extends ConsumerState<ScriptReviewScreen> {
       try {
         final dio = ref.read(dioProvider);
         final res = await dio.get('/n8n/sessions/$sessionId/');
-        final data = res.data as Map<String, dynamic>;
-        final script =
-            (data['script_content'] ?? data['scriptContent'])?.toString();
-        if (script != null && script.isNotEmpty) {
+        final data = res.data is Map<String, dynamic> ? res.data as Map<String, dynamic> : <String, dynamic>{};
+        final scriptStatus = (data['script_status'] ?? data['scriptStatus'])?.toString();
+        final topStatus = (data['status'])?.toString();
+        final script = (data['script_content'] ?? data['scriptContent'])?.toString();
+        // Only accept the script once it is pending approval — not when it is
+        // rejected (regeneration in progress) or not yet generated.
+        final isReady = topStatus == 'script_pending' || scriptStatus == 'pending_approval';
+        if (isReady && script != null && script.isNotEmpty) {
           timer.cancel();
           _pollTimer = null;
           if (mounted) {

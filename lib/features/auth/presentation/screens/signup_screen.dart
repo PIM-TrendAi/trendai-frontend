@@ -6,6 +6,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
 import '../../../../core/utils/password_generator.dart';
 import '../../auth_repository.dart';
+import '../../../dashboard/presentation/widgets/dashboard_tutorial.dart';
 
 class SignUpScreen extends ConsumerStatefulWidget {
   const SignUpScreen({super.key});
@@ -84,6 +85,8 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     if (!mounted) return;
     final auth = ref.read(authNotifierProvider);
     if (auth.hasValue && auth.value != null) {
+      await TutorialService.setNewUser();
+      if (!mounted) return;
       context.go('/category-selection');
     } else if (auth.hasError) {
       ScaffoldMessenger.of(context).showSnackBar(

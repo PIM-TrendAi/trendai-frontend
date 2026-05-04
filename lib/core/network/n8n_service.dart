@@ -80,7 +80,11 @@ class N8nService {
         'userPrompt': userPrompt,
       },
     );
-    return WorkflowStartResponse.fromJson(response.data as Map<String, dynamic>);
+    final raw = response.data;
+    if (raw is! Map<String, dynamic>) {
+      return const WorkflowStartResponse(sessionId: '', scriptContent: '', status: 'started');
+    }
+    return WorkflowStartResponse.fromJson(raw);
   }
 
   Future<ScriptActionResponse> submitScriptDecision({
@@ -94,7 +98,10 @@ class N8nService {
       // n8n responds — give enough headroom so we don't timeout mid-generation.
       options: Options(receiveTimeout: const Duration(seconds: 150)),
     );
-    return ScriptActionResponse.fromJson(response.data as Map<String, dynamic>);
+    final raw1 = response.data;
+    return raw1 is Map<String, dynamic>
+        ? ScriptActionResponse.fromJson(raw1)
+        : ScriptActionResponse(sessionId: sessionId, status: action);
   }
 
   Future<VideoActionResponse> submitVideoDecision({
@@ -105,7 +112,10 @@ class N8nService {
       _pathVideoDecision,
       data: {'sessionId': sessionId, 'action': action},
     );
-    return VideoActionResponse.fromJson(response.data as Map<String, dynamic>);
+    final raw2 = response.data;
+    return raw2 is Map<String, dynamic>
+        ? VideoActionResponse.fromJson(raw2)
+        : VideoActionResponse(sessionId: sessionId, status: action);
   }
 
   Future<VideoStatusResponse> checkVideoStatus({
@@ -116,7 +126,10 @@ class N8nService {
       queryParameters: {'sessionId': sessionId},
       options: Options(receiveTimeout: const Duration(seconds: 10)),
     );
-    return VideoStatusResponse.fromJson(response.data as Map<String, dynamic>);
+    final raw3 = response.data;
+    return raw3 is Map<String, dynamic>
+        ? VideoStatusResponse.fromJson(raw3)
+        : VideoStatusResponse(sessionId: sessionId, status: 'generating');
   }
 
   Future<List<CreatorVideoModel>> fetchMyVideos({required String creatorId}) async {

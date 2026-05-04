@@ -33,6 +33,9 @@ dependencies:
   # Local Preferences (theme, etc.)
   shared_preferences: ^2.3.5
 
+  # Image picker (profile photo)
+  image_picker: ^1.1.2
+
   # Icons
   cupertino_icons: ^1.0.8
   url_launcher: ^6.3.2

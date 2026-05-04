@@ -1,7 +1,11 @@
 // Profile screen — user info, plan, connected platforms, settings, logout.
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/network/dio_client.dart';
@@ -11,6 +15,7 @@ import '../../../../core/theme/theme_provider.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
 import '../../auth/auth_repository.dart';
 import '../../video_workflow/data/n8n_repository.dart';
+import '../../dashboard/presentation/widgets/dashboard_tutorial.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -21,27 +26,89 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen>
     with WidgetsBindingObserver {
   bool _notifications = true;
+  String? _profileImagePath;
   bool _tiktokLoading = false;
   bool _instagramLoading = false;
   bool _facebookLoading = false;
   bool _youtubeLoading = false;
-  bool _threadsLoading = false;
   bool _tiktokConnected = false;
   bool _instagramConnected = false;
   bool _facebookConnected = false;
   bool _youtubeConnected = false;
-  bool _threadsConnected = false;
   final _scrollCtrl = ScrollController();
+
+  // Tutorial keys
+  final _keyProfileCard      = GlobalKey();
+  final _keyConnectedPlatforms = GlobalKey();
+  final _keySettings         = GlobalKey();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowTutorial());
     _checkTikTokStatus();
     _checkInstagramStatus();
     _checkFacebookStatus();
     _checkYouTubeStatus();
-    _checkThreadsStatus();
+    _loadProfileImage();
+  }
+
+  Future<void> _loadProfileImage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final path = prefs.getString('profile_image_path');
+    if (path != null && File(path).existsSync() && mounted) {
+      setState(() => _profileImagePath = path);
+    }
+  }
+
+  Future<void> _pickProfileImage() async {
+    final picker = ImagePicker();
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ImageSourceSheet(),
+    );
+    if (source == null) return;
+    try {
+      final picked = await picker.pickImage(source: source, imageQuality: 80);
+      if (picked == null) return;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('profile_image_path', picked.path);
+      if (mounted) setState(() => _profileImagePath = picked.path);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not pick image: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _maybeShowTutorial() async {
+    if (!mounted) return;
+    if (!await TutorialService.shouldShowFor('profile')) return;
+    if (!mounted) return;
+    showPageTutorial(context, 'profile', [
+      TutorialStep(
+        targetKey: _keyProfileCard,
+        title: 'Your Profile',
+        body: 'Your account info lives here. Tap your name or email to manage your details.',
+        tooltipBelow: true,
+      ),
+      TutorialStep(
+        targetKey: _keyConnectedPlatforms,
+        title: 'Connect Your Platforms',
+        body: 'Link TikTok, Instagram & Facebook so TrendAI can post content and pull live analytics for you.',
+        tooltipBelow: true,
+      ),
+      TutorialStep(
+        targetKey: _keySettings,
+        title: 'Settings',
+        body: 'Toggle dark mode, manage your niche preferences, and log out from here.',
+        tooltipBelow: false,
+      ),
+    ]);
   }
 
   @override
@@ -52,7 +119,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       _checkInstagramStatus();
       _checkFacebookStatus();
       _checkYouTubeStatus();
-      _checkThreadsStatus();
     }
   }
 
@@ -106,14 +172,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     } catch (_) {}
   }
 
-  Future<void> _checkThreadsStatus() async {
-    try {
-      final dio = ref.read(dioProvider);
-      final res = await dio.get('/platforms/threads/status/');
-      if (mounted) setState(() => _threadsConnected = res.data['connected'] == true);
-    } catch (_) {}
-  }
-
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -146,6 +204,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     children: [
                       // ── Avatar + Name Card
                       Container(
+                        key: _keyProfileCard,
                         padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
                         decoration: BoxDecoration(
                           color: isDark ? const Color(0xFF0F111E) : Colors.white,
@@ -159,20 +218,46 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                         ),
                         child: Column(
                           children: [
-                            Container(
-                              width: 80,
-                              height: 80,
-                              decoration: BoxDecoration(
-                                gradient: AppColors.gradientPrimary,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 3),
-                                boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: 0.3), blurRadius: 20)],
-                              ),
-                              child: Center(
-                                child: Text(
-                                  user?.name.isNotEmpty == true ? user!.name[0].toUpperCase() : '?',
-                                  style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: Colors.white),
-                                ),
+                            GestureDetector(
+                              onTap: _pickProfileImage,
+                              child: Stack(
+                                children: [
+                                  Container(
+                                    width: 80,
+                                    height: 80,
+                                    decoration: BoxDecoration(
+                                      gradient: _profileImagePath == null ? AppColors.gradientPrimary : null,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 3),
+                                      boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: 0.3), blurRadius: 20)],
+                                      image: _profileImagePath != null
+                                          ? DecorationImage(image: FileImage(File(_profileImagePath!)), fit: BoxFit.cover)
+                                          : null,
+                                    ),
+                                    child: _profileImagePath == null
+                                        ? Center(
+                                            child: Text(
+                                              user?.name.isNotEmpty == true ? user!.name[0].toUpperCase() : '?',
+                                              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: Colors.white),
+                                            ),
+                                          )
+                                        : null,
+                                  ),
+                                  Positioned(
+                                    right: 0,
+                                    bottom: 0,
+                                    child: Container(
+                                      width: 24,
+                                      height: 24,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: Colors.black, width: 2),
+                                      ),
+                                      child: const Icon(Icons.camera_alt_rounded, size: 12, color: Colors.white),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                             const SizedBox(height: 16),
@@ -240,7 +325,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                       const SizedBox(height: 24),
 
                       // ── Connected Platforms
-                      Text('Connected Platforms',
+                      Text(
+                        key: _keyConnectedPlatforms,
+                        'Connected Platforms',
                           style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
                       const SizedBox(height: 12),
                       Column(
@@ -435,52 +522,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                               }
                             },
                           ),
-                          const SizedBox(height: 8),
-                          _PlatformCard(
-                            name: 'Threads',
-                            isConnected: _threadsConnected,
-                            iconColor: const Color(0xFF000000),
-                            iconData: Icons.alternate_email_rounded,
-                            isPrimaryAction: !_threadsConnected,
-                            isLoading: _threadsLoading,
-                            onAction: () async {
-                              if (_threadsLoading) return;
-                              setState(() => _threadsLoading = true);
-                              try {
-                                final dio = ref.read(dioProvider);
-                                if (_threadsConnected) {
-                                  await dio.post('/platforms/threads/disconnect/');
-                                  setState(() => _threadsConnected = false);
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Threads disconnected.')),
-                                    );
-                                  }
-                                } else {
-                                  await dio.post('/platforms/threads/connect/', data: {'access_token': 'manual_threads_token'});
-                                  setState(() => _threadsConnected = true);
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Threads connected! 🎉')),
-                                    );
-                                  }
-                                }
-                              } catch (e) {
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Error: $e')),
-                                  );
-                                }
-                              } finally {
-                                if (mounted) setState(() => _threadsLoading = false);
-                              }
-                            },
-                          ),
                         ],
                       ),
                       const SizedBox(height: 24),
-                      Text('Settings',
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                      Text(
+                        key: _keySettings,
+                        'Settings',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                      ),
                       const SizedBox(height: 12),
                       Container(
                         decoration: BoxDecoration(
@@ -739,6 +788,41 @@ class _SettingRow extends StatelessWidget {
           const Spacer(),
           child,
         ],
+      ),
+    );
+  }
+}
+
+class _ImageSourceSheet extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF0F111E) : Colors.white;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+      child: Material(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade600, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded),
+              title: const Text('Choose from library'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_rounded),
+              title: const Text('Take a photo'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }

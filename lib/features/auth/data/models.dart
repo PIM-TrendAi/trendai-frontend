@@ -253,41 +253,59 @@ class YouTubeVideoModel {
   }
 }
 
-/// ThreadsPost model — mirrors backend Threads post response.
+/// ThreadsPost model — mirrors backend ThreadsPostSerializer response.
 class ThreadsPostModel {
   final int id;
   final String postId;
+  final String? postUrl;
+  final String? profileUrl;
   final String? username;
   final String? text;
-  final String? thumbnailUrl;
-  final String? postUrl;
-  final int likeCount;
-  final String? niche;
   final String? createdAt;
+  final int likeCount;
+  final int replyCount;
+  final int repostCount;
+  final bool hasVideo;
+  final String? videoUrl;
+  final String? thumbnailUrl;
+  final String? niche;
+  final String status;
 
   const ThreadsPostModel({
     required this.id,
     required this.postId,
+    this.postUrl,
+    this.profileUrl,
     this.username,
     this.text,
-    this.thumbnailUrl,
-    this.postUrl,
-    this.likeCount = 0,
-    this.niche,
     this.createdAt,
+    this.likeCount = 0,
+    this.replyCount = 0,
+    this.repostCount = 0,
+    this.hasVideo = false,
+    this.videoUrl,
+    this.thumbnailUrl,
+    this.niche,
+    this.status = 'scraped',
   });
 
   factory ThreadsPostModel.fromJson(Map<String, dynamic> json) {
     return ThreadsPostModel(
       id: json['id'] as int,
       postId: json['post_id'] as String,
+      postUrl: json['post_url'] as String?,
+      profileUrl: json['profile_url'] as String?,
       username: json['username'] as String?,
       text: json['text'] as String?,
-      thumbnailUrl: json['thumbnail_url'] as String?,
-      postUrl: json['post_url'] as String?,
-      likeCount: json['like_count'] as int? ?? 0,
-      niche: json['niche'] as String?,
       createdAt: json['created_at'] as String?,
+      likeCount: json['like_count'] as int? ?? 0,
+      replyCount: json['reply_count'] as int? ?? 0,
+      repostCount: json['repost_count'] as int? ?? 0,
+      hasVideo: json['has_video'] as bool? ?? false,
+      videoUrl: json['video_url'] as String?,
+      thumbnailUrl: json['thumbnail_url'] as String?,
+      niche: json['niche'] as String?,
+      status: json['status'] as String? ?? 'scraped',
     );
   }
 }

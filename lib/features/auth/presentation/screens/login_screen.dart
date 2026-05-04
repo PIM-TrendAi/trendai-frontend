@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
 import '../../auth_repository.dart';
+import '../../../dashboard/presentation/widgets/dashboard_tutorial.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -36,6 +37,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!mounted) return;
     final auth = ref.read(authNotifierProvider);
     if (auth.hasValue && auth.value != null) {
+      await TutorialService.clearNewUser();
+      if (!mounted) return;
       context.go('/dashboard');
     } else if (auth.hasError) {
       ScaffoldMessenger.of(context).showSnackBar(

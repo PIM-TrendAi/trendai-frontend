@@ -1,46 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/network/dio_client.dart';
+import '../../../../core/network/n8n_service.dart';
 import '../../../../core/storage/secure_storage.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
 import '../../../auth/data/models.dart';
-import '../../../auth/auth_repository.dart';
 import '../../data/models/workflow_models.dart';
-import '../../data/n8n_repository.dart';
 import '../providers/workflow_provider.dart';
 
-// Keywords associated with each niche for loose client-side matching
-const _nicheKeywords = <String, List<String>>{
-  'entertainment': ['entertainment', 'funny', 'comedy', 'viral', 'fun', 'meme', 'prank', 'challenge', 'skit'],
-  'education': ['education', 'learn', 'tutorial', 'howto', 'tips', 'facts', 'science', 'history', 'study'],
-  'business': ['business', 'entrepreneur', 'startup', 'marketing', 'sales', 'ceo', 'hustle', 'success'],
-  'finance': ['finance', 'money', 'investing', 'stocks', 'crypto', 'budget', 'wealth', 'financial', 'income'],
-  'fitness': ['fitness', 'workout', 'gym', 'health', 'exercise', 'diet', 'nutrition', 'training', 'muscle'],
-  'motivation': ['motivation', 'mindset', 'inspire', 'success', 'goals', 'growth', 'positivity', 'mindfulness'],
-  'gaming': ['gaming', 'gamer', 'game', 'gameplay', 'esports', 'twitch', 'ps5', 'xbox', 'minecraft', 'fortnite'],
-  'art': ['art', 'design', 'drawing', 'painting', 'creative', 'artist', 'illustration', 'sketch', 'digital'],
-  'fashion': ['fashion', 'style', 'outfit', 'ootd', 'clothing', 'beauty', 'makeup', 'skincare', 'aesthetic'],
-  'cooking': ['cooking', 'food', 'recipe', 'chef', 'baking', 'meal', 'kitchen', 'eat', 'delicious'],
-  'travel': ['travel', 'adventure', 'explore', 'trip', 'vacation', 'wanderlust', 'destination', 'vlog'],
-  'tech': ['tech', 'technology', 'coding', 'programming', 'ai', 'software', 'developer', 'gadget', 'review'],
-  'podcast': ['podcast', 'interview', 'talk', 'discussion', 'story', 'storytelling', 'narration'],
-  'news': ['news', 'politics', 'world', 'breaking', 'update', 'current', 'economy', 'report'],
-  'storytelling': ['story', 'storytelling', 'narrative', 'tale', 'sharing', 'life', 'experience'],
-};
-
-bool _matchesNiche(TrendingVideoModel v, String niche) {
-  final keywords = _nicheKeywords[niche.toLowerCase()] ?? [niche.toLowerCase()];
-  final haystack = [
-    v.title,
-    v.niche,
-    ...v.hashtags,
-  ].join(' ').toLowerCase();
-  return keywords.any((kw) => haystack.contains(kw));
-}
 
 String _pageNameFromUrl(String? url) {
   if (url == null || url.isEmpty) return '';
@@ -55,42 +28,61 @@ String _formatViewCount(int count) {
   return '';
 }
 
+int _parseCount(String s) {
+  final v = s.trim().toUpperCase().replaceAll(',', '');
+  if (v.endsWith('B')) return ((double.tryParse(v.replaceAll('B', '')) ?? 0) * 1e9).toInt();
+  if (v.endsWith('M')) return ((double.tryParse(v.replaceAll('M', '')) ?? 0) * 1e6).toInt();
+  if (v.endsWith('K')) return ((double.tryParse(v.replaceAll('K', '')) ?? 0) * 1e3).toInt();
+  return int.tryParse(v) ?? 0;
+}
+
 // (niche, platform)
 final _trendingVideosProvider =
     FutureProvider.family<List<TrendingVideoModel>, (String?, String)>((ref, params) async {
   final (niche, platform) = params;
   final dio = ref.read(dioProvider);
 
+  if (platform == 'tiktok') {
+    return ref.read(n8nServiceProvider).fetchTrendingVideos(niche: null);
+  }
+
   if (platform == 'instagram') {
-    final res = await dio.get('/n8n/trending_videos/');
+    final queryParams = <String, dynamic>{};
+    if (niche != null && niche.isNotEmpty) queryParams['niche'] = niche;
+    final res = await dio.get('/n8n/instagram-reels/', queryParameters: queryParams);
     final list = res.data['results'] as List? ?? res.data as List;
-    return list.cast<Map<String, dynamic>>().map((json) => TrendingVideoModel(
-      videoId: json['video_id'] as String? ?? '',
-      title: json['title'] as String? ?? 'Instagram Reel',
-      author: '',
-      thumbnailUrl: json['thumbnail_url'] as String? ?? '',
-      views: '',
-      likes: '',
-      niche: json['category'] as String? ?? 'Instagram',
-    )).toList();
+    return list.cast<Map<String, dynamic>>().map((json) {
+      final Map<String, dynamic> data = Map<String, dynamic>.from(json);
+      data['video_id'] = data['reel_id'] ?? data['video_id'] ?? '';
+      data['title'] = data['caption'] ?? data['title'] ?? 'Trending Reel';
+      data['views'] = ((data['views'] ?? 0) is String ? data['views'] : data['views'].toString());
+      data['likes'] = ((data['likes'] ?? 0) is String ? data['likes'] : data['likes'].toString());
+      data['author'] = data['author'] ?? '@unknown';
+      data['thumbnail_url'] = data['thumbnail_url'] ?? '';
+      data['category'] = data['niche'] ?? 'instagram';
+      data['niche'] = data['niche'] ?? 'instagram';
+      data['tiktok_url'] = data['reel_url'] ?? data['tiktok_url'] ?? '';
+      data['hashtags'] = data['hashtags'] is String ? (data['hashtags'] as String).split(',') : (data['hashtags'] as List?)?.cast<String>() ?? [];
+      return TrendingVideoModel.fromJson(data);
+    }).toList();
   }
 
   if (platform == 'facebook') {
-    // Pass the user's niche so the backend returns only matching reels
-    final nicheParam = niche != null && niche.isNotEmpty ? niche.toLowerCase() : 'general';
-    final res = await dio.get('/n8n/facebook_reels/', queryParameters: {'niche': nicheParam, 'limit': 20});
-    final list = res.data is List ? res.data as List : (res.data['results'] as List? ?? []);
-    return list.cast<Map<String, dynamic>>().map((json) {
-      final reel = FacebookReelModel.fromJson(json);
-      final pageName = _pageNameFromUrl(reel.pageUrl);
+    final queryParams = <String, dynamic>{};
+    if (niche != null && niche.isNotEmpty) queryParams['niche'] = niche;
+    final res = await dio.get('/trends/reels/', queryParameters: queryParams);
+    final list = res.data['results'] as List? ?? res.data as List;
+    return list.map((json) {
+      final Map<String, dynamic> data = Map<String, dynamic>.from(json);
+      final reel = FacebookReelModel.fromJson(data);
       return TrendingVideoModel(
         videoId: reel.reelId,
-        title: (reel.text != null && reel.text!.isNotEmpty) ? reel.text! : (pageName.isNotEmpty ? pageName : 'Facebook Reel'),
-        author: pageName,
+        title: reel.text ?? 'Facebook Reel',
+        author: '',
         thumbnailUrl: reel.thumbnailUrl ?? '',
-        views: _formatViewCount(reel.playCount),
+        views: reel.playCount.toString(),
         likes: '',
-        niche: reel.niche ?? nicheParam,
+        niche: reel.niche ?? 'facebook',
         hashtags: reel.niche != null ? [reel.niche!] : [],
         tiktokUrl: reel.reelUrl ?? '',
       );
@@ -100,29 +92,46 @@ final _trendingVideosProvider =
   if (platform == 'youtube') {
     final res = await dio.get('/trends/youtube-videos/');
     final list = res.data['results'] as List? ?? res.data as List;
-    return list.cast<Map<String, dynamic>>().map((json) {
+    return list.map((json) {
       final video = YouTubeVideoModel.fromJson(json);
-      final tags = (video.tags ?? '').split(RegExp(r'[,\s]+')).where((t) => t.isNotEmpty).toList();
       return TrendingVideoModel(
         videoId: video.videoId,
         title: video.titre ?? 'YouTube Video',
         author: '',
         thumbnailUrl: 'https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg',
-        views: _formatViewCount(video.vues),
+        views: video.vues.toString(),
         likes: '',
-        niche: video.niche ?? 'YouTube',
-        hashtags: tags,
+        niche: video.niche ?? 'youtube',
+        hashtags: const [],
         tiktokUrl: 'https://www.youtube.com/watch?v=${video.videoId}',
       );
     }).toList();
   }
 
-  // TikTok
-  final repo = ref.read(n8nRepositoryProvider);
-  final all = await repo.fetchTrendingVideos(niche: null, platform: platform);
-  if (niche == null || niche.isEmpty) return all;
-  final filtered = all.where((v) => _matchesNiche(v, niche)).toList();
-  return filtered.isNotEmpty ? filtered : all;
+  if (platform == 'threads') {
+    final queryParams = <String, dynamic>{};
+    if (niche != null && niche.isNotEmpty) queryParams['niche'] = niche;
+    final res = await dio.get('/trends/threads-posts/', queryParameters: queryParams);
+    final list = res.data['results'] as List? ?? res.data as List;
+    return list.map((json) {
+      final Map<String, dynamic> data = Map<String, dynamic>.from(json);
+      final post = ThreadsPostModel.fromJson(data);
+      return TrendingVideoModel(
+        videoId: post.postId,
+        title: post.text ?? 'Threads Post',
+        author: post.username ?? '@unknown',
+        thumbnailUrl: post.thumbnailUrl ?? '',
+        views: post.likeCount.toString(),
+        likes: post.likeCount.toString(),
+        niche: post.niche ?? 'threads',
+        hashtags: post.niche != null ? [post.niche!] : [],
+        tiktokUrl: post.postUrl ?? '',
+      );
+    }).toList();
+  }
+
+  // Fallback
+  return [];
 });
 
 class VideoPickerScreen extends ConsumerStatefulWidget {
@@ -133,32 +142,153 @@ class VideoPickerScreen extends ConsumerStatefulWidget {
   ConsumerState<VideoPickerScreen> createState() => _VideoPickerScreenState();
 }
 
-class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
+const _kAiAgents = [
+  _AiAgent(id: 'gpt4o',    name: 'GPT-4o',          subtitle: 'OpenAI · Best for creativity',    color: Color(0xFF10A37F), icon: Icons.auto_awesome_rounded),
+  _AiAgent(id: 'claude',   name: 'Claude 3.5',       subtitle: 'Anthropic · Great for nuance',    color: Color(0xFFD97757), icon: Icons.psychology_rounded),
+  _AiAgent(id: 'gemini',   name: 'Gemini Pro',       subtitle: 'Google · Fast & multimodal',      color: Color(0xFF4285F4), icon: Icons.blur_on_rounded),
+  _AiAgent(id: 'llama',    name: 'Llama 3',          subtitle: 'Meta · Open-source powerhouse',   color: Color(0xFF0668E1), icon: Icons.memory_rounded),
+  _AiAgent(id: 'mistral',  name: 'Mistral Large',    subtitle: 'Mistral AI · Efficient & sharp',  color: Color(0xFFFF7000), icon: Icons.wind_power_rounded),
+];
+
+class _AiAgent {
+  const _AiAgent({
+    required this.id,
+    required this.name,
+    required this.subtitle,
+    required this.color,
+    required this.icon,
+  });
+  final String id;
+  final String name;
+  final String subtitle;
+  final Color color;
+  final IconData icon;
+}
+
+class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _rotateController;
   final _promptCtrl = TextEditingController();
   TrendingVideoModel? _selectedVideo;
+  List<String> _niches = [];
+  String _sort = 'views';
   String _selectedPlatform = 'tiktok';
-  String? _selectedNiche;
+  bool _isScraping = false;
+  _AiAgent _selectedAgent = _kAiAgents.first;
 
-  Future<void> _triggerScrape(String platform) async {
-    final dio = ref.read(dioProvider);
-    final categories = ref.read(authNotifierProvider).valueOrNull?.categories;
-    final fallbackNiche = (categories != null && categories.isNotEmpty) ? categories.first : 'general';
-    final niche = _selectedNiche ?? fallbackNiche;
+  @override
+  void initState() {
+    super.initState();
+    _rotateController = AnimationController(vsync: this, duration: const Duration(seconds: 1));
+    _loadNiches();
+  }
+
+  Future<void> _loadNiches() async {
+    final niches = await ref.read(secureStorageProvider).readCreatorNiches();
+    if (mounted) setState(() => _niches = niches);
+  }
+
+  void _showAgentPicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _AgentPickerSheet(
+        agents: _kAiAgents,
+        selected: _selectedAgent,
+        onPick: (agent) {
+          setState(() => _selectedAgent = agent);
+          Navigator.pop(context);
+        },
+      ),
+    );
+  }
+
+  Future<void> _triggerScrape() async {
+    if (_isScraping) return;
+
+    setState(() => _isScraping = true);
+    _rotateController.repeat();
+
     try {
-      await dio.post('/n8n/trigger-scrape/', data: {'platform': platform, 'niche': niche});
+      final dio = ref.read(dioProvider);
+      final nicheKey = _niches.join(',');
+      final nicheStr = _niches.isNotEmpty ? nicheKey : 'trending';
+
+      final response = await dio.post(
+        '/n8n/trigger-scrape/',
+        data: {
+          "niche": nicheStr,
+          "platform": _selectedPlatform,
+        },
+      );
+
+      final bool success = response.data['success'] == true;
+      final String msg = success
+          ? 'Scraping for "$nicheStr" started on $_selectedPlatform...'
+          : (response.data['message'] ?? 'Failed to reach N8N. Make sure the workflow is active.');
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Scraping $platform "$niche"... 🔄')),
+          SnackBar(
+            content: Text(msg),
+            backgroundColor: success ? const Color(0xFFE1306C) : AppColors.error,
+          ),
         );
-        await Future.delayed(const Duration(seconds: 3));
-        if (mounted) ref.invalidate(_trendingVideosProvider((niche, platform)));
       }
-    } catch (_) {}
+
+      if (!success) {
+        setState(() => _isScraping = false);
+        _rotateController.stop();
+        return;
+      }
+
+      // Capture the newest ID BEFORE the scan completes
+      final initialVideos = ref.read(_trendingVideosProvider((nicheKey, _selectedPlatform))).asData?.value ?? [];
+      final String? lastId = initialVideos.isNotEmpty ? initialVideos.first.videoId : null;
+
+      // Poll for new results (max 60 s)
+      int attempts = 0;
+      const maxAttempts = 20;
+
+      Timer.periodic(const Duration(seconds: 3), (timer) async {
+        attempts++;
+        if (!mounted || attempts > maxAttempts) {
+          timer.cancel();
+          if (mounted) {
+            setState(() => _isScraping = false);
+            _rotateController.stop();
+          }
+          return;
+        }
+        try {
+          final videos = await ref.refresh(_trendingVideosProvider((nicheKey, _selectedPlatform)).future);
+          if (videos.isNotEmpty && videos.first.videoId != lastId) {
+            timer.cancel();
+            if (mounted) {
+              setState(() => _isScraping = false);
+              _rotateController.stop();
+            }
+          }
+        } catch (_) {}
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Scraping failed: ${e.toString().replaceAll('Exception: ', '').substring(0, 80)}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        setState(() => _isScraping = false);
+        _rotateController.stop();
+      }
+    }
   }
 
   @override
   void dispose() {
     _promptCtrl.dispose();
+    _rotateController.dispose();
     super.dispose();
   }
 
@@ -191,7 +321,7 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
           videoHashtags: video.hashtags,
           videoViews: video.views,
           videoLikes: video.likes,
-          niche: _selectedNiche ?? ref.read(authNotifierProvider).valueOrNull?.categories.firstOrNull ?? video.niche,
+          niche: _niches.isNotEmpty ? _niches.first : video.niche,
           userPrompt: _promptCtrl.text.trim(),
           platform: _selectedPlatform,
         );
@@ -212,10 +342,8 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final categories = ref.watch(authNotifierProvider).valueOrNull?.categories;
-    final fallbackNiche = (categories != null && categories.isNotEmpty) ? categories.first : 'general';
-    final currentNiche = _selectedNiche ?? fallbackNiche;
-    final videosAsync = ref.watch(_trendingVideosProvider((currentNiche, _selectedPlatform)));
+    final nicheKey = _niches.join(',');
+    final videosAsync = ref.watch(_trendingVideosProvider((nicheKey, _selectedPlatform)));
     final workflowState = ref.watch(workflowProvider);
     final isLoading = workflowState.status == WorkflowStatus.generatingScript;
 
@@ -235,11 +363,42 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Your prompt',
-                        style: TextStyle(
-                            color: AppColors.textMuted,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600)),
+                    Row(
+                      children: [
+                        const Text('Your prompt',
+                            style: TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600)),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: _showAgentPicker,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [_selectedAgent.color.withValues(alpha: 0.25), _selectedAgent.color.withValues(alpha: 0.10)],
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: _selectedAgent.color.withValues(alpha: 0.5), width: 1),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(_selectedAgent.icon, size: 14, color: _selectedAgent.color),
+                                const SizedBox(width: 5),
+                                Text(
+                                  _selectedAgent.name,
+                                  style: TextStyle(color: _selectedAgent.color, fontSize: 12, fontWeight: FontWeight.w700),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(Icons.keyboard_arrow_down_rounded, size: 14, color: _selectedAgent.color),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 6),
                     TextField(
                       controller: _promptCtrl,
@@ -305,8 +464,90 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
                           });
                         },
                       ),
+                      const SizedBox(width: 8),
+                      _PlatformChip(
+                        label: 'Threads',
+                        brandColor: Colors.white,
+                        icon: Icons.alternate_email_rounded,
+                        isSelected: _selectedPlatform == 'threads',
+                        onTap: () => setState(() {
+                          _selectedPlatform = 'threads';
+                          _selectedVideo = null;
+                        }),
+                      ),
                     ],
                   ),
+                ),
+              ),
+
+              // Scrape button — shown for instagram, facebook, and threads
+              if (_selectedPlatform == 'instagram' || _selectedPlatform == 'facebook' || _selectedPlatform == 'threads')
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Trending Reels',
+                          style: TextStyle(
+                            color: Color(0xFFE1306C),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: _isScraping ? null : _triggerScrape,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            gradient: _selectedPlatform == 'instagram' 
+                                ? const LinearGradient(colors: [Color(0xFFE1306C), Color(0xFFF58529)])
+                                : _selectedPlatform == 'facebook'
+                                    ? const LinearGradient(colors: [Color(0xFF1877F2), Color(0xFF3B5998)])
+                                    : const LinearGradient(colors: [Colors.white24, Colors.white10]),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: (_selectedPlatform == 'instagram' ? const Color(0xFFE1306C) : _selectedPlatform == 'facebook' ? const Color(0xFF1877F2) : Colors.white).withValues(alpha: 0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Center(
+                            child: RotationTransition(
+                              turns: _rotateController,
+                              child: const Icon(
+                                Icons.refresh_rounded,
+                                color: Colors.white,
+                                size: 22,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // Sort chips — Views / Likes / Date
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.sort_rounded, color: AppColors.textMuted, size: 16),
+                    const SizedBox(width: 8),
+                    const Text('Sort:', style: TextStyle(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
+                    const SizedBox(width: 10),
+                    _SortChip(label: 'Views',  icon: Icons.play_arrow_rounded,   value: 'views',  selected: _sort, onTap: () => setState(() => _sort = 'views')),
+                    const SizedBox(width: 8),
+                    _SortChip(label: 'Likes',  icon: Icons.favorite_rounded,     value: 'likes',  selected: _sort, onTap: () => setState(() => _sort = 'likes')),
+                    const SizedBox(width: 8),
+                    _SortChip(label: 'Date',   icon: Icons.access_time_rounded,  value: 'date',   selected: _sort, onTap: () => setState(() => _sort = 'date')),
+                  ],
                 ),
               ),
 
@@ -326,14 +567,27 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
                         const SizedBox(height: 8),
                         TextButton(
                           onPressed: () =>
-                              ref.invalidate(_trendingVideosProvider((currentNiche, _selectedPlatform))),
+                              ref.invalidate(_trendingVideosProvider((nicheKey, _selectedPlatform))),
                           child: const Text('Retry'),
                         ),
                       ],
                     ),
                   ),
                   data: (videos) {
-                    if (videos.isEmpty) {
+                    // Show all trends without niche filtering — let the user pick freely.
+                    List<TrendingVideoModel> filtered = List<TrendingVideoModel>.from(videos);
+                    // Apply sort
+                    if (_sort == 'views') {
+                      filtered.sort((a, b) => _parseCount(b.views).compareTo(_parseCount(a.views)));
+                    } else if (_sort == 'likes') {
+                      filtered.sort((a, b) => _parseCount(b.likes).compareTo(_parseCount(a.likes)));
+                    }
+                    // 'date' keeps API order (newest first)
+
+                    if (filtered.isEmpty) {
+                      final bool canScrape = _selectedPlatform == 'facebook' ||
+                          _selectedPlatform == 'threads' ||
+                          _selectedPlatform == 'instagram';
                       return Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -342,11 +596,15 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
                                 color: AppColors.textMuted, size: 48),
                             const SizedBox(height: 12),
                             Text(
-                              _selectedPlatform == 'facebook'
-                                  ? 'No reels yet for "$currentNiche"'
-                                  : _selectedPlatform == 'threads'
-                                      ? 'No Threads posts yet for "$currentNiche"'
-                                      : 'Coming soon',
+                              _selectedPlatform == 'instagram'
+                                  ? 'No reels scraped yet'
+                                  : _selectedPlatform == 'facebook'
+                                      ? 'No reels yet'
+                                      : _selectedPlatform == 'threads'
+                                          ? 'No Threads posts yet'
+                                          : _selectedPlatform == 'youtube'
+                                              ? 'No YouTube videos found'
+                                              : 'No trending videos found',
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
@@ -355,36 +613,16 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              (_selectedPlatform == 'facebook' || _selectedPlatform == 'threads')
-                                  ? 'Tap below to scrape fresh posts for your niche.'
-                                  : 'This platform is being integrated.\nCheck back soon!',
+                              canScrape
+                                  ? 'Tap the refresh button above to scrape fresh reels.'
+                                  : _selectedPlatform == 'tiktok'
+                                      ? 'Make sure the TikTok N8N workflow is running.'
+                                      : _selectedPlatform == 'youtube'
+                                          ? 'Make sure the backend is running and YouTube data has been scraped.'
+                                          : 'This platform is being integrated.\nCheck back soon!',
                               textAlign: TextAlign.center,
                               style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
                             ),
-                            if (_selectedPlatform == 'facebook') ...[
-                              const SizedBox(height: 16),
-                              ElevatedButton.icon(
-                                onPressed: () => _triggerScrape('facebook'),
-                                icon: const Icon(Icons.refresh_rounded, size: 18),
-                                label: const Text('Scrape Now'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF1877F2),
-                                  foregroundColor: Colors.white,
-                                ),
-                              ),
-                            ],
-                            if (_selectedPlatform == 'threads') ...[
-                              const SizedBox(height: 16),
-                              ElevatedButton.icon(
-                                onPressed: () => _triggerScrape('threads'),
-                                icon: const Icon(Icons.refresh_rounded, size: 18),
-                                label: const Text('Scrape Now'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: Colors.black,
-                                ),
-                              ),
-                            ],
                           ],
                         ),
                       );
@@ -398,9 +636,9 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
                         mainAxisSpacing: 10,
                         childAspectRatio: 0.62, // portrait video ratio
                       ),
-                      itemCount: videos.length,
+                      itemCount: filtered.length,
                       itemBuilder: (ctx, i) {
-                        final v = videos[i];
+                        final v = filtered[i];
                         final isSelected = _selectedVideo?.videoId == v.videoId;
                         return GestureDetector(
                           onTap: () => setState(() => _selectedVideo = v),
@@ -425,6 +663,9 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> {
                                       ? Image.network(
                                           v.thumbnailUrl,
                                           fit: BoxFit.cover,
+                                          headers: _selectedPlatform == 'tiktok'
+                                              ? const {'Referer': 'https://www.tiktok.com/'}
+                                              : null,
                                           errorBuilder: (_, __, ___) =>
                                               _PlaceholderThumb(platform: _selectedPlatform),
                                         )
@@ -638,10 +879,177 @@ class _PlaceholderThumb extends StatelessWidget {
         ),
       );
     }
+    if (platform == 'threads') {
+      return Container(
+        color: Colors.white.withValues(alpha: 0.10),
+        child: const Center(
+          child: Icon(Icons.alternate_email_rounded, color: Colors.white, size: 40),
+        ),
+      );
+    }
     return Container(
       color: Colors.white10,
       child: const Center(
         child: Icon(Icons.play_circle_outline_rounded, color: AppColors.textMuted, size: 40),
+      ),
+    );
+  }
+}
+
+class _AgentPickerSheet extends StatelessWidget {
+  const _AgentPickerSheet({
+    required this.agents,
+    required this.selected,
+    required this.onPick,
+  });
+
+  final List<_AiAgent> agents;
+  final _AiAgent selected;
+  final ValueChanged<_AiAgent> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF14141F),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: AppColors.gradientPrimary,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 18),
+              ),
+              const SizedBox(width: 12),
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('AI Agent', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
+                  Text('Pick the model to write your script', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          ...agents.map((agent) {
+            final isSelected = agent.id == selected.id;
+            return GestureDetector(
+              onTap: () => onPick(agent),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: isSelected ? agent.color.withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isSelected ? agent.color.withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.08),
+                    width: isSelected ? 1.5 : 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: agent.color.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(agent.icon, color: agent.color, size: 20),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(agent.name, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 2),
+                          Text(agent.subtitle, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    if (isSelected)
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(color: agent.color, shape: BoxShape.circle),
+                        child: const Icon(Icons.check_rounded, color: Colors.white, size: 12),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class _SortChip extends StatelessWidget {
+  const _SortChip({
+    required this.label,
+    required this.icon,
+    required this.value,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final String value;
+  final String selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isSelected = value == selected;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          gradient: isSelected ? AppColors.gradientPrimary : null,
+          color: isSelected ? null : Colors.white.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? Colors.transparent : Colors.white.withValues(alpha: 0.12),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: isSelected ? Colors.white : AppColors.textMuted),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : AppColors.textMuted,
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

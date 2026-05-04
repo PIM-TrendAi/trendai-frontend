@@ -10,6 +10,7 @@ import '../../../../shared/widgets/shared_widgets.dart';
 import '../../auth/data/models.dart';
 import '../../auth/auth_repository.dart';
 import '../../trends/data/trends_provider.dart';
+import 'widgets/dashboard_tutorial.dart';
 
 class _DashboardVideo {
   final String platform;
@@ -167,6 +168,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   final _scrollCtrl = ScrollController();
 
+  // Tutorial target keys
+  final _keyViralScore    = GlobalKey();
+  final _keyTrendingNow   = GlobalKey();
+  final _keyHeatmap       = GlobalKey();
+  final _keyRecommended   = GlobalKey();
+  final _keyBottomNav     = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -174,6 +182,45 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       _facebookScrapedThisSession = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => _triggerFacebookStartupScrape());
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowTutorial());
+  }
+
+  Future<void> _maybeShowTutorial() async {
+    if (!mounted) return;
+    if (!await TutorialService.shouldShowFor('dashboard')) return;
+    if (!mounted) return;
+    showPageTutorial(context, 'dashboard', [
+      TutorialStep(
+        targetKey: _keyViralScore,
+        title: 'Your Viral Score',
+        body: 'Tracks how trendy your content is right now. The higher the score, the hotter your niche!',
+        tooltipBelow: true,
+      ),
+      TutorialStep(
+        targetKey: _keyTrendingNow,
+        title: 'Trending Now',
+        body: 'Browse the hottest videos across TikTok, Instagram, YouTube & Facebook all in one place.',
+        tooltipBelow: true,
+      ),
+      TutorialStep(
+        targetKey: _keyHeatmap,
+        title: 'Platform Heatmap',
+        body: 'See which platform has the highest engagement right now so you post where it matters most.',
+        tooltipBelow: true,
+      ),
+      TutorialStep(
+        targetKey: _keyRecommended,
+        title: 'AI Recommendations',
+        body: 'Personalised content ideas generated just for you based on your selected niches.',
+        tooltipBelow: true,
+      ),
+      TutorialStep(
+        targetKey: _keyBottomNav,
+        title: 'Easy Navigation',
+        body: 'Switch between Dashboard, Trends, Analytics & your Profile from here at any time.',
+        tooltipBelow: false,
+      ),
+    ]);
   }
 
   /// Fire-and-forget: scrape Facebook once when the app opens so the
@@ -222,18 +269,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     // ── Viral Score Card
-                    summaryAsync.when(
-                      data: (summary) {
-                        final score = (summary['viral_score']?['value'] as num?)?.toInt() ?? 0;
-                        return _ViralScoreCard(score: score);
-                      },
-                      loading: () => const _ViralScoreCard(score: 0),
-                      error: (_, __) => const _ViralScoreCard(score: 0),
+                    KeyedSubtree(
+                      key: _keyViralScore,
+                      child: summaryAsync.when(
+                        data: (summary) {
+                          final score = (summary['viral_score']?['value'] as num?)?.toInt() ?? 0;
+                          return _ViralScoreCard(score: score);
+                        },
+                        loading: () => const _ViralScoreCard(score: 0),
+                        error: (_, __) => const _ViralScoreCard(score: 0),
+                      ),
                     ),
                     const SizedBox(height: 28),
 
+
                     // ── Trending Now
                     Row(
+                      key: _keyTrendingNow,
                       children: [
                         const Icon(Icons.local_fire_department_rounded, color: AppColors.primary),
                         const SizedBox(width: 8),
@@ -264,8 +316,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     const SizedBox(height: 28),
 
                     // ── Multi-Platform Heatmap
-                    Text('Multi-Platform Heatmap',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                    Text(
+                      key: _keyHeatmap,
+                      'Multi-Platform Heatmap',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                    ),
                     const SizedBox(height: 14),
                     summaryAsync.when(
                       data: (summary) => _PlatformHeatmap(heatmap: summary['heatmap']),
@@ -276,6 +331,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
                     // ── Recommendations
                     Row(
+                      key: _keyRecommended,
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text('Recommended For You',
@@ -326,7 +382,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             left: 0,
             right: 0,
             bottom: 0,
-            child: TrendAIBottomNav(currentIndex: 0, scrollController: _scrollCtrl),
+            child: KeyedSubtree(
+              key: _keyBottomNav,
+              child: TrendAIBottomNav(currentIndex: 0, scrollController: _scrollCtrl),
+            ),
           ),
         ],
       ),

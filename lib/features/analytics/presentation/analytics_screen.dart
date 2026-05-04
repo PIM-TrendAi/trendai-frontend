@@ -14,6 +14,7 @@ import '../../../../core/network/dio_client.dart';
 import '../../../../core/storage/secure_storage.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
+import '../../dashboard/presentation/widgets/dashboard_tutorial.dart';
 
 // ── REST providers
 final _analyticsSummaryProvider = FutureProvider<Map<String, dynamic>>((ref) async {
@@ -83,9 +84,34 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     super.initState();
     _connectWs();
     _connectFbWs();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowTutorial());
+  }
+
+  Future<void> _maybeShowTutorial() async {
+    if (!mounted) return;
+    if (!await TutorialService.shouldShowFor('analytics')) return;
+    if (!mounted) return;
+    showPageTutorial(context, 'analytics', [
+      TutorialStep(
+        targetKey: _keyPlatformSelector,
+        title: 'Platform Selector',
+        body: 'Switch between TikTok, Facebook & Instagram to see live stats for each connected account.',
+        tooltipBelow: true,
+      ),
+      TutorialStep(
+        targetKey: _keyStatsSection,
+        title: 'Live Performance Data',
+        body: 'Real-time video stats pulled directly from your connected accounts. Connect a platform in Profile to unlock full data.',
+        tooltipBelow: true,
+      ),
+    ]);
   }
 
   final _scrollCtrl = ScrollController();
+
+  // Tutorial keys
+  final _keyPlatformSelector = GlobalKey();
+  final _keyStatsSection     = GlobalKey();
 
   @override
   void dispose() {
@@ -211,6 +237,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
               
               // ── Platform Selector
               SingleChildScrollView(
+                key: _keyPlatformSelector,
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
@@ -227,6 +254,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
               const SizedBox(height: 20),
 
               Expanded(
+                key: _keyStatsSection,
                 child: SingleChildScrollView(
                   controller: _scrollCtrl,
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),

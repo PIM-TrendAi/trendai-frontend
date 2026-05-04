@@ -82,7 +82,7 @@ class TrendingVideoModel {
       // PostgreSQL array format: "{#tag1,#tag2}" → ["#tag1", "#tag2"]
       final cleaned = value.replaceAll(RegExp(r'[{}"]'), '').trim();
       if (cleaned.isEmpty) return [];
-      return cleaned.split(',').map((e) => e.trim()).toList();
+      return cleaned.split(',').map((e) => e.trim().replaceAll(RegExp(r'^"|"$'), '')).toList();
     }
     return [];
   }
@@ -155,6 +155,7 @@ class CreatorVideoModel {
     this.caption = '',
     this.scriptContent = '',
     this.thumbnailUrl = '',
+    this.niche = '',
   });
 
   final String videoId;
@@ -165,6 +166,7 @@ class CreatorVideoModel {
   final String caption;
   final String scriptContent;
   final String thumbnailUrl;
+  final String niche;
 
   factory CreatorVideoModel.fromJson(Map<String, dynamic> json) {
     return CreatorVideoModel(
@@ -176,6 +178,7 @@ class CreatorVideoModel {
       caption: json['caption'] as String? ?? '',
       scriptContent: json['script_content'] as String? ?? '',
       thumbnailUrl: json['thumbnail_url'] as String? ?? '',
+      niche: json['niche'] as String? ?? '',
     );
   }
 }

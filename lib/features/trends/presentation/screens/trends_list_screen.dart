@@ -1,4 +1,5 @@
 // TrendsList screen — filterable/sortable list of viral trends.
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +11,7 @@ import '../../../../shared/widgets/shared_widgets.dart';
 import '../../../auth/data/models.dart';
 import '../../../video_workflow/data/models/workflow_models.dart';
 import '../../data/trends_provider.dart';
+import '../../../dashboard/presentation/widgets/dashboard_tutorial.dart';
 
 final _allTrendsProvider = FutureProvider.family<List<TrendModel>, Map<String, String>>(
   (ref, params) async {
@@ -22,9 +24,20 @@ final _allTrendsProvider = FutureProvider.family<List<TrendModel>, Map<String, S
 
 final _instagramTrendsVideosProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final dio = ref.read(dioProvider);
-  final res = await dio.get('/n8n/trending_videos/');
+  final res = await dio.get('/n8n/instagram-reels/');
   final list = res.data['results'] as List? ?? res.data as List;
-  return list.cast<Map<String, dynamic>>();
+  return list.cast<Map<String, dynamic>>().map((json) {
+    final Map<String, dynamic> mapped = Map<String, dynamic>.from(json);
+    mapped['video_id'] = json['reel_id'] ?? json['video_id'] ?? '';
+    mapped['title'] = json['caption'] ?? json['title'] ?? 'Trending Reel';
+    mapped['category'] = json['niche'] ?? 'Instagram';
+    mapped['thumbnail_url'] = json['thumbnail_url'] ?? '';
+    mapped['views'] = (json['views'] ?? 0).toString();
+    mapped['likes'] = (json['likes'] ?? 0).toString();
+    mapped['author'] = json['author'] ?? '@unknown';
+    mapped['tiktok_url'] = json['reel_url'] ?? json['tiktok_url'] ?? '';
+    return mapped;
+  }).toList();
 });
 
 final _facebookTrendsReelsProvider = FutureProvider<List<FacebookReelModel>>((ref) async {
@@ -84,10 +97,49 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
   String _niche = '';
   final _scrollCtrl = ScrollController();
 
+  // Tutorial keys
+  final _keyPlatformFilter = GlobalKey();
+  final _keyNicheFilter    = GlobalKey();
+  final _keySortRow        = GlobalKey();
+  final _keyTrendsList     = GlobalKey();
+
   @override
   void initState() {
     super.initState();
     _initNiche();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowTutorial());
+  }
+
+  Future<void> _maybeShowTutorial() async {
+    if (!mounted) return;
+    if (!await TutorialService.shouldShowFor('trends')) return;
+    if (!mounted) return;
+    showPageTutorial(context, 'trends', [
+      TutorialStep(
+        targetKey: _keyPlatformFilter,
+        title: 'Platform Filter',
+        body: 'Switch between TikTok, Instagram, YouTube & Facebook to see what\'s hot on each platform.',
+        tooltipBelow: true,
+      ),
+      TutorialStep(
+        targetKey: _keyNicheFilter,
+        title: 'Filter by Niche',
+        body: 'Narrow down trends to your content category — comedy, fitness, tech, and more.',
+        tooltipBelow: true,
+      ),
+      TutorialStep(
+        targetKey: _keySortRow,
+        title: 'Sort Trends',
+        body: 'Order results by most viewed, most liked, or most recent to find the right trend fast.',
+        tooltipBelow: true,
+      ),
+      TutorialStep(
+        targetKey: _keyTrendsList,
+        title: 'Tap Any Trend',
+        body: 'Tap a trend card to see full details and instantly generate an AI script from it.',
+        tooltipBelow: true,
+      ),
+    ]);
   }
 
   @override
@@ -140,6 +192,7 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
 
               // Platform filter chips
               SizedBox(
+                key: _keyPlatformFilter,
                 height: 52,
                 child: ListView.separated(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -173,6 +226,7 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
 
               // Sort
               Padding(
+                key: _keySortRow,
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
                 child: Row(
                   children: [
@@ -210,6 +264,7 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
               // Niche filter chips (only shown for TikTok/All)
               if (_platform == 'TikTok' || _platform == 'All')
                 SizedBox(
+                  key: _keyNicheFilter,
                   height: 40,
                   child: ListView.separated(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -251,6 +306,7 @@ class _TrendsListState extends ConsumerState<TrendsListScreen> {
 
               // Trends list
               Expanded(
+                key: _keyTrendsList,
                 child: ListView(
                   controller: _scrollCtrl,
                   padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
@@ -369,19 +425,19 @@ final _allPlatformsMixedProvider = FutureProvider<List<_MixedVideo>>((ref) async
         hashtags: v.hashtags,
       )).toList(),
     ).catchError((_) => <_MixedVideo>[]),
-    dio.get('/n8n/trending_videos/').then<List<_MixedVideo>>((res) {
+    dio.get('/n8n/instagram-reels/').then<List<_MixedVideo>>((res) {
       final list = res.data['results'] as List? ?? res.data as List;
       return list.cast<Map<String, dynamic>>().map((j) => _MixedVideo(
         platform: 'instagram',
-        title: j['title'] as String? ?? 'Instagram Reel',
+        title: j['caption'] as String? ?? j['title'] as String? ?? 'Instagram Reel',
         thumbnailUrl: j['thumbnail_url'] as String? ?? '',
         author: j['author'] as String? ?? '',
-        views: _parseCount(j['views'] as String? ?? '0'),
-        viewsLabel: j['views'] as String? ?? '',
-        likes: j['likes'] as String? ?? '',
-        category: j['category'] as String? ?? 'Instagram',
-        videoId: j['video_id'] as String? ?? '',
-        externalUrl: j['tiktok_url'] as String? ?? '',
+        views: _parseCount((j['views'] ?? 0).toString()),
+        viewsLabel: (j['views'] ?? 0).toString(),
+        likes: (j['likes'] ?? 0).toString(),
+        category: j['niche'] as String? ?? 'Instagram',
+        videoId: j['reel_id'] as String? ?? j['video_id'] as String? ?? '',
+        externalUrl: j['reel_url'] as String? ?? j['tiktok_url'] as String? ?? '',
       )).toList();
     }).catchError((_) => <_MixedVideo>[]),
     dio.get('/trends/youtube-videos/').then<List<_MixedVideo>>((res) {
@@ -979,12 +1035,101 @@ String _formatCount(int count) {
 
 // ── Instagram Trends Section ─────────────────────────────────────────────────
 
-class _InstagramTrendsSection extends ConsumerWidget {
+class _InstagramTrendsSection extends ConsumerStatefulWidget {
   const _InstagramTrendsSection({required this.sort});
   final String sort;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_InstagramTrendsSection> createState() => _InstagramTrendsSectionState();
+}
+
+class _InstagramTrendsSectionState extends ConsumerState<_InstagramTrendsSection>
+    with TickerProviderStateMixin {
+  late AnimationController _rotateCtrl;
+  bool _isScraping = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _rotateCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 1));
+  }
+
+  @override
+  void dispose() {
+    _rotateCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _triggerScrape() async {
+    if (_isScraping) return;
+    setState(() => _isScraping = true);
+    _rotateCtrl.repeat();
+
+    try {
+      final dio = ref.read(dioProvider);
+      final niches = await ref.read(secureStorageProvider).readCreatorNiches();
+      final nicheStr = niches.isNotEmpty ? niches.join(',') : 'trending';
+
+      final response = await dio.post(
+        '/n8n/trigger-scrape/',
+        data: {'niche': nicheStr, 'platform': 'instagram'},
+      );
+
+      final bool success = response.data['success'] == true;
+      final String msg = success
+          ? 'Instagram scraping started...'
+          : (response.data['message'] ?? 'Failed to reach N8N. Make sure the workflow is active.');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(msg),
+          backgroundColor: success ? const Color(0xFFE1306C) : AppColors.error,
+        ));
+      }
+
+      if (!success) {
+        setState(() => _isScraping = false);
+        _rotateCtrl.stop();
+        return;
+      }
+
+      // Poll every 3 s for up to 60 s waiting for new reels
+      int attempts = 0;
+      Timer.periodic(const Duration(seconds: 3), (timer) async {
+        attempts++;
+        if (!mounted || attempts > 20) {
+          timer.cancel();
+          if (mounted) {
+            setState(() => _isScraping = false);
+            _rotateCtrl.stop();
+          }
+          return;
+        }
+        try {
+          final videos = await ref.refresh(_instagramTrendsVideosProvider.future);
+          if (videos.isNotEmpty) {
+            timer.cancel();
+            if (mounted) {
+              setState(() => _isScraping = false);
+              _rotateCtrl.stop();
+            }
+          }
+        } catch (_) {}
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Could not reach server. Check your connection.'),
+          backgroundColor: AppColors.error,
+        ));
+        setState(() => _isScraping = false);
+        _rotateCtrl.stop();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final async = ref.watch(_instagramTrendsVideosProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -994,6 +1139,21 @@ class _InstagramTrendsSection extends ConsumerWidget {
           const SizedBox(width: 6),
           Text('Trending Instagram Reels',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+          const Spacer(),
+          GestureDetector(
+            onTap: _isScraping ? null : _triggerScrape,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(
+                gradient: AppColors.gradientPrimary,
+                shape: BoxShape.circle,
+              ),
+              child: RotationTransition(
+                turns: _rotateCtrl,
+                child: const Icon(Icons.refresh_rounded, color: Colors.white, size: 18),
+              ),
+            ),
+          ),
         ]),
         const SizedBox(height: 12),
         async.when(
@@ -1008,17 +1168,27 @@ class _InstagramTrendsSection extends ConsumerWidget {
           data: (videos) {
             if (videos.isEmpty) {
               return const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Center(child: Text('No Instagram reels found', style: TextStyle(color: AppColors.textMuted))),
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: Column(
+                  children: [
+                    Icon(Icons.hourglass_empty_rounded, color: AppColors.textMuted, size: 40),
+                    SizedBox(height: 12),
+                    Text('No reels scraped yet',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                    SizedBox(height: 4),
+                    Text('Tap the refresh button above to scrape fresh reels.',
+                        style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                        textAlign: TextAlign.center),
+                  ],
+                ),
               );
             }
             final sorted = [...videos];
-            if (sort == 'views') {
+            if (widget.sort == 'views') {
               sorted.sort((a, b) => _parseCount(b['views'] as String? ?? '0').compareTo(_parseCount(a['views'] as String? ?? '0')));
-            } else if (sort == 'likes') {
+            } else if (widget.sort == 'likes') {
               sorted.sort((a, b) => _parseCount(b['likes'] as String? ?? '0').compareTo(_parseCount(a['likes'] as String? ?? '0')));
             }
-            // 'recent' keeps API order
             return GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),

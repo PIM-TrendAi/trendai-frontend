@@ -6,12 +6,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
+import 'package:video_player/video_player.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../shared/widgets/shared_widgets.dart';
-import 'web_video_stub.dart'
-  if (dart.library.html) 'web_video_impl.dart'
-  if (dart.library.io) 'mobile_video_impl.dart';
 
 final _videoGenerationStatusProvider =
     StateProvider<Map<String, dynamic>?>((_) => null);
@@ -62,15 +60,17 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
   }
 
   Future<void> _loadLatestSession() async {
-    // If opened from a specific reel selection, don't restore a previous session —
-    // the user intends to start fresh for this reel.
+    // If opened from a specific reel/niche selection, don't restore a previous session —
+    // the user intends to start fresh for this niche.
     if (widget.selectedVideoId != null && widget.selectedVideoId!.isNotEmpty) return;
+    if (widget.niche != null && widget.niche!.isNotEmpty) return;
 
     try {
       final dio = ref.read(dioProvider);
       final currentPlatform = (widget.platform ?? 'tiktok').toLowerCase();
       final res = await dio.get('/n8n/sessions/latest/', queryParameters: {
         'platform': currentPlatform,
+        if (widget.niche != null && widget.niche!.isNotEmpty) 'niche': widget.niche,
       });
       if (!mounted) return;
       final sessionId = res.data['session_id'];
@@ -156,6 +156,7 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
     try {
       final res = await dio.get('/n8n/sessions/latest/', queryParameters: {
         'platform': currentPlatform,
+        if (widget.niche != null && widget.niche!.isNotEmpty) 'niche': widget.niche,
       });
       if (res.data['session_id'] != null) {
         _currentSessionId = res.data['session_id'];
@@ -170,6 +171,7 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
         try {
           final res = await dio.get('/n8n/sessions/latest/', queryParameters: {
             'platform': currentPlatform,
+            if (widget.niche != null && widget.niche!.isNotEmpty) 'niche': widget.niche,
           });
           if (res.data['session_id'] != null) {
             _currentSessionId = res.data['session_id'];
@@ -215,6 +217,10 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
     final sessionId = status['session_id'];
     if (scriptId == null || sessionId == null) return;
 
+    final platform = _selectedPlatforms.isNotEmpty
+        ? _selectedPlatforms.first
+        : (widget.platform ?? 'tiktok');
+
     _autoApprovingScript = true;
     try {
       final dio = ref.read(dioProvider);
@@ -222,6 +228,7 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
         'session_id': sessionId,
         'script_id': scriptId,
         'approved': true,
+        'platform': platform,
       });
       _lastAutoApprovedScriptId = scriptId as String?;
     } catch (e) {
@@ -329,43 +336,8 @@ class _AIGeneratorScreenState extends ConsumerState<AIGeneratorScreen> {
                       // Show generated script above the subject header
                       if (videoStatus != null &&
                           videoStatus['script_content'] != null) ...[
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: AppColors.primary.withValues(alpha: 0.2),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(Icons.auto_awesome,
-                                      size: 16,
-                                      color: AppColors.primary.withValues(alpha: 0.8)),
-                                  const SizedBox(width: 8),
-                                  const Text('SCRIPT GÉNÉRÉ',
-                                      style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                          letterSpacing: 1.2,
-                                          color: AppColors.primary)),
-                                ],
-                              ),
-                              const SizedBox(height: 14),
-                              Text(
-                                videoStatus['script_content'] as String,
-                                style: const TextStyle(
-                                    fontSize: 14,
-                                    height: 1.6,
-                                    color: Colors.white70),
-                              ),
-                            ],
-                          ),
+                        _StructuredScriptCard(
+                          scriptContent: videoStatus['script_content'] as String,
                         ),
                         const SizedBox(height: 16),
                       ],
@@ -555,35 +527,7 @@ class _VideoStatusCard extends StatelessWidget {
             const Text('Aperçu du Clip',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             const SizedBox(height: 12),
-            AspectRatio(
-              aspectRatio: 9 / 16,
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  color: Colors.black,
-                  boxShadow: [
-                    BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.2),
-                        blurRadius: 20)
-                  ],
-                ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    const Icon(Icons.play_circle_fill,
-                        size: 70, color: Colors.white70),
-                    Positioned(
-                        bottom: 20,
-                        child: Text('VIDÉO GÉNÉRÉE',
-                            style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.5),
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 2))),
-                  ],
-                ),
-              ),
-            ),
+            _VideoPlayer(videoUrl: videoUrl),
             const SizedBox(height: 24),
             if (state == 'video_pending') ...[
               GradientButton(
@@ -775,6 +719,311 @@ class _PlatformSelector extends StatelessWidget {
           }).toList(),
         ),
       ],
+    );
+  }
+}
+
+class _VideoPlayer extends StatefulWidget {
+  const _VideoPlayer({required this.videoUrl});
+  final String videoUrl;
+
+  @override
+  State<_VideoPlayer> createState() => _VideoPlayerState();
+}
+
+class _VideoPlayerState extends State<_VideoPlayer> {
+  late VideoPlayerController _controller;
+  late Future<void> _initializeVideoPlayerFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.networkUrl(
+      Uri.parse(widget.videoUrl),
+    );
+    _initializeVideoPlayerFuture = _controller.initialize();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AspectRatio(
+      aspectRatio: 9 / 16,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: Colors.black,
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.2),
+              blurRadius: 20,
+            )
+          ],
+        ),
+        child: FutureBuilder<void>(
+          future: _initializeVideoPlayerFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.done) {
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  VideoPlayer(_controller),
+                  if (!_controller.value.isPlaying)
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _controller.play();
+                        });
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.black.withValues(alpha: 0.3),
+                        ),
+                        padding: const EdgeInsets.all(16),
+                        child: const Icon(
+                          Icons.play_arrow,
+                          size: 48,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  Positioned(
+                    bottom: 16,
+                    left: 16,
+                    right: 16,
+                    child: VideoProgressIndicator(
+                      _controller,
+                      allowScrubbing: true,
+                      colors: VideoProgressColors(
+                        playedColor: AppColors.primary,
+                        bufferedColor: AppColors.primary.withValues(alpha: 0.3),
+                        backgroundColor: Colors.white.withValues(alpha: 0.1),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 8,
+                    right: 12,
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _controller.value.isPlaying
+                              ? _controller.pause()
+                              : _controller.play();
+                        });
+                      },
+                      child: Icon(
+                        _controller.value.isPlaying
+                            ? Icons.pause_circle_filled
+                            : Icons.play_circle_filled,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            } else if (snapshot.hasError) {
+              return const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error, color: Colors.red, size: 48),
+                    SizedBox(height: 12),
+                    Text(
+                      'Failed to load video',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  ],
+                ),
+              );
+            } else {
+              return const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation(AppColors.primary),
+                ),
+              );
+            }
+          },
+        ),
+      ),
+    );
+  }
+}
+
+/// Parses algo-optimised scripts with [HOOK]/[BODY]/[CTA]/[LOOP]/[HASHTAGS] sections
+/// and displays each as a colour-coded card with its algo purpose.
+class _StructuredScriptCard extends StatelessWidget {
+  const _StructuredScriptCard({required this.scriptContent});
+  final String scriptContent;
+
+  static const _sections = [
+    (
+      label: 'HOOK',
+      emoji: '🎣',
+      color: Color(0xFFFF0050),
+      reason: '0–3 s • stop the scroll',
+    ),
+    (
+      label: 'BODY',
+      emoji: '🎬',
+      color: Color(0xFF7C3AED),
+      reason: 'core value • keeps watch time',
+    ),
+    (
+      label: 'CTA',
+      emoji: '💬',
+      color: Color(0xFF0EA5E9),
+      reason: 'engagement bait • boosts comments/saves',
+    ),
+    (
+      label: 'LOOP',
+      emoji: '🔄',
+      color: Color(0xFF10B981),
+      reason: 'seamless replay • counts as re-watch',
+    ),
+    (
+      label: 'HASHTAGS',
+      emoji: '#️⃣',
+      color: Color(0xFFF59E0B),
+      reason: '1 mega + 2 niche + 1 micro + 1 trending',
+    ),
+  ];
+
+  /// Extracts the text between two consecutive section labels.
+  static String? _extract(String raw, String label) {
+    final pattern = RegExp(
+      r'\[' + label + r'\]\s*([\s\S]*?)(?=\[\w|$)',
+      caseSensitive: false,
+    );
+    final m = pattern.firstMatch(raw);
+    return m?.group(1)?.trim();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Check for at least one labelled section to switch to structured view.
+    final hasStructure =
+        RegExp(r'\[(HOOK|BODY|CTA|LOOP|HASHTAGS)\]', caseSensitive: false)
+            .hasMatch(scriptContent);
+
+    if (!hasStructure) {
+      // Fallback: plain text (old-style scripts)
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: AppColors.primary.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.auto_awesome,
+                    size: 16,
+                    color: AppColors.primary.withValues(alpha: 0.8)),
+                const SizedBox(width: 8),
+                const Text('SCRIPT',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                        color: AppColors.primary)),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text(
+              scriptContent,
+              style: const TextStyle(
+                  fontSize: 14,
+                  height: 1.6,
+                  color: Colors.white70),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Structured view: render each section as a colour-coded card
+    return Column(
+      children: _sections.map((section) {
+        final content = _extract(scriptContent, section.label);
+        if (content == null || content.isEmpty) return const SizedBox.shrink();
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: section.color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: section.color.withValues(alpha: 0.3),
+                width: 1.5,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      section.emoji,
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            section.label,
+                            style: TextStyle(
+                              color: section.color,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                          Text(
+                            section.reason,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.5),
+                              fontSize: 11,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  content,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }

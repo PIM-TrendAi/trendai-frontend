@@ -140,7 +140,7 @@ class WorkflowNotifier extends StateNotifier<WorkflowState> {
     if (sessionId == null) return;
     try {
       final res = await _repo.checkVideoStatus(sessionId, platform: state.platform ?? 'tiktok');
-      if (res.status == 'ready' && res.videoUrl != null) {
+      if ((res.status == 'ready' || res.status == 'video_pending') && res.videoUrl != null) {
         state = state.copyWith(
           videoUrl: res.videoUrl,
           videoId: res.videoId,

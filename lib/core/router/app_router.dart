@@ -21,6 +21,7 @@ import '../../features/tiktok_stats/presentation/tiktok_stats_screen.dart';
 import '../../features/instagram/presentation/screens/instagram_trends_screen.dart';
 import '../../features/facebook/presentation/screens/facebook_engine_screen.dart';
 import '../../features/youtube/presentation/screens/youtube_engine_screen.dart';
+import '../../features/threads/presentation/screens/threads_engine_screen.dart';
 import '../../features/ai_generator/presentation/ai_generator_screen.dart';
 import '../../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../../features/auth/presentation/screens/reset_password_screen.dart';
@@ -94,6 +95,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/instagram-engine', builder: (_, __) => const InstagramTrendsScreen()),
       GoRoute(path: '/facebook-engine', builder: (_, __) => const FacebookEngineScreen()),
       GoRoute(path: '/youtube-engine', builder: (_, __) => const YouTubeEngineScreen()),
+      GoRoute(path: '/threads-engine', builder: (_, __) => const ThreadsEngineScreen()),
     ],
   );
 });
