@@ -275,7 +275,7 @@ class _ThreadsEngineScreenState extends ConsumerState<ThreadsEngineScreen> {
             left: 0,
             right: 0,
             bottom: 0,
-            child: TrendAIBottomNav(currentIndex: 1),
+            child: TrendAIBottomNav(currentIndex: 2),
           ),
         ],
       ),
@@ -400,19 +400,20 @@ class _ThreadVideoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        // Navigate to AI Generator with Threads context
-        context.go(
-          '/ai-generator?platform=threads&selectedVideoId=${post.postId}&niche=${post.niche ?? "general"}',
-        );
-      },
-      child: GlassCard(
-        padding: EdgeInsets.zero,
+      onTap: () => context.push(
+        '/ai-generator?niche=${Uri.encodeComponent(post.niche ?? "Threads")}&selectedVideoId=${post.postId}&platform=threads',
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        clipBehavior: Clip.antiAlias,
         child: Stack(
           fit: StackFit.expand,
           children: [
             // Thumbnail
-            post.thumbnailUrl != null
+            (post.thumbnailUrl != null && post.thumbnailUrl!.isNotEmpty)
                 ? Image.network(post.thumbnailUrl!, fit: BoxFit.cover)
                 : Container(color: Colors.white.withValues(alpha: 0.05)),
             

@@ -82,6 +82,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           niche: state.uri.queryParameters['niche'],
           selectedVideoId: state.uri.queryParameters['selectedVideoId'],
           platform: state.uri.queryParameters['platform'],
+          customPrompt: state.uri.queryParameters['customPrompt'],
         ),
       ),
       GoRoute(path: '/analytics', builder: (_, __) => const AnalyticsScreen()),

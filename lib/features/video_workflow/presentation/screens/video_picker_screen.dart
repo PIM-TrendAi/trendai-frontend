@@ -174,6 +174,17 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> with Sing
   String _selectedPlatform = 'tiktok';
   bool _isScraping = false;
   _AiAgent _selectedAgent = _kAiAgents.first;
+  String _selectedNiche = 'ALL';
+
+  static const List<String> _threadsNiches = [
+    'ALL',
+    'Fitness',
+    'Tech',
+    'Business',
+    'Luxe',
+    'Cuisine',
+    'Humour',
+  ];
 
   @override
   void initState() {
@@ -307,7 +318,13 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> with Sing
       return;
     }
 
-    // All platforms: direct n8n webhook flow → script review screen
+    // Platforms with direct one-tap video flow (Production Studio)
+    if (_selectedPlatform == 'threads' || _selectedPlatform == 'instagram' || _selectedPlatform == 'facebook') {
+      final niche = _niches.isNotEmpty ? _niches.first : video.niche;
+      final prompt = _promptCtrl.text.trim();
+      context.go('/ai-generator?platform=$_selectedPlatform&selectedVideoId=${video.videoId}&niche=$niche&customPrompt=${Uri.encodeComponent(prompt)}');
+      return;
+    }
 
     // TikTok: direct n8n webhook flow → script review screen
     final profile = await ref.read(secureStorageProvider).readCreatorProfile();
@@ -342,8 +359,9 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> with Sing
 
   @override
   Widget build(BuildContext context) {
-    final nicheKey = _niches.join(',');
-    final videosAsync = ref.watch(_trendingVideosProvider((nicheKey, _selectedPlatform)));
+    final isScrapedPlatform = _selectedPlatform == 'threads' || _selectedPlatform == 'instagram' || _selectedPlatform == 'facebook';
+    final nicheKey = isScrapedPlatform ? _selectedNiche : _niches.join(',');
+    final videosAsync = ref.watch(_trendingVideosProvider((nicheKey == 'ALL' ? '' : nicheKey, _selectedPlatform)));
     final workflowState = ref.watch(workflowProvider);
     final isLoading = workflowState.status == WorkflowStatus.generatingScript;
 
@@ -431,6 +449,14 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> with Sing
                       ),
                       const SizedBox(width: 8),
                       _PlatformChip(
+                        label: 'Threads',
+                        brandColor: Colors.white,
+                        icon: Icons.alternate_email_rounded,
+                        isSelected: _selectedPlatform == 'threads',
+                        onTap: () => context.push('/threads-engine'),
+                      ),
+                      const SizedBox(width: 8),
+                      _PlatformChip(
                         label: 'Instagram',
                         brandColor: const Color(0xFFE1306C),
                         icon: Icons.camera_alt_rounded,
@@ -464,17 +490,6 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> with Sing
                           });
                         },
                       ),
-                      const SizedBox(width: 8),
-                      _PlatformChip(
-                        label: 'Threads',
-                        brandColor: Colors.white,
-                        icon: Icons.alternate_email_rounded,
-                        isSelected: _selectedPlatform == 'threads',
-                        onTap: () => setState(() {
-                          _selectedPlatform = 'threads';
-                          _selectedVideo = null;
-                        }),
-                      ),
                     ],
                   ),
                 ),
@@ -484,49 +499,85 @@ class _VideoPickerScreenState extends ConsumerState<VideoPickerScreen> with Sing
               if (_selectedPlatform == 'instagram' || _selectedPlatform == 'facebook' || _selectedPlatform == 'threads')
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Expanded(
-                        child: Text(
-                          'Trending Reels',
-                          style: TextStyle(
-                            color: Color(0xFFE1306C),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: _isScraping ? null : _triggerScrape,
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            gradient: _selectedPlatform == 'instagram' 
-                                ? const LinearGradient(colors: [Color(0xFFE1306C), Color(0xFFF58529)])
-                                : _selectedPlatform == 'facebook'
-                                    ? const LinearGradient(colors: [Color(0xFF1877F2), Color(0xFF3B5998)])
-                                    : const LinearGradient(colors: [Colors.white24, Colors.white10]),
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: (_selectedPlatform == 'instagram' ? const Color(0xFFE1306C) : _selectedPlatform == 'facebook' ? const Color(0xFF1877F2) : Colors.white).withValues(alpha: 0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Center(
-                            child: RotationTransition(
-                              turns: _rotateController,
-                              child: const Icon(
-                                Icons.refresh_rounded,
-                                color: Colors.white,
-                                size: 22,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _selectedPlatform == 'threads' ? 'Threads Viral Posts' : 'Trending Reels',
+                              style: TextStyle(
+                                color: _selectedPlatform == 'threads' ? Colors.white : const Color(0xFFE1306C),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                           ),
+                          GestureDetector(
+                            onTap: _isScraping ? null : _triggerScrape,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                gradient: _selectedPlatform == 'instagram' 
+                                    ? const LinearGradient(colors: [Color(0xFFE1306C), Color(0xFFF58529)])
+                                    : _selectedPlatform == 'facebook'
+                                        ? const LinearGradient(colors: [Color(0xFF1877F2), Color(0xFF3B5998)])
+                                        : const LinearGradient(colors: [Colors.white24, Colors.white10]),
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: (_selectedPlatform == 'instagram' ? const Color(0xFFE1306C) : _selectedPlatform == 'facebook' ? const Color(0xFF1877F2) : Colors.white).withValues(alpha: 0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Center(
+                                child: RotationTransition(
+                                  turns: _rotateController,
+                                  child: const Icon(
+                                    Icons.refresh_rounded,
+                                    color: Colors.white,
+                                    size: 22,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: _threadsNiches.map((n) {
+                            final sel = _selectedNiche == n;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: GestureDetector(
+                                onTap: () => setState(() => _selectedNiche = n),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: sel ? (_selectedPlatform == 'threads' ? Colors.white : AppColors.primary) : Colors.white.withValues(alpha: 0.05),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: sel ? Colors.transparent : Colors.white10),
+                                  ),
+                                  child: Text(
+                                    n,
+                                    style: TextStyle(
+                                      color: sel ? (_selectedPlatform == 'threads' ? Colors.black : Colors.white) : AppColors.textMuted,
+                                      fontSize: 12,
+                                      fontWeight: sel ? FontWeight.bold : FontWeight.normal,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
                         ),
                       ),
                     ],

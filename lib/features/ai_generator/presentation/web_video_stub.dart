@@ -1,4 +1,11 @@
-library web_video_stub;
+import 'package:flutter/material.dart';
 
-// Stub implementation for web video support
-// This file provides a fallback when platform-specific implementations aren't available
+class WebVideoPlayer extends StatelessWidget {
+  final String url;
+  const WebVideoPlayer({super.key, required this.url});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: Text('Video player not available on this platform'));
+  }
+}

@@ -13,6 +13,7 @@ library;
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'server_config.dart';
@@ -24,6 +25,8 @@ const _timeout = Duration(milliseconds: 800);
 /// Returns the host (no port, no scheme) of the Django server.
 /// Falls back to the compile-time [serverHost] if discovery fails.
 Future<String> discoverServerHost() async {
+  if (kIsWeb) return '127.0.0.1'; // Localhost for web development
+  
   final prefs = await SharedPreferences.getInstance();
 
   // 1. Try cached host first

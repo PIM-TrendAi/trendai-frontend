@@ -283,6 +283,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     const SizedBox(height: 28),
 
 
+                    // ── Threads Section (Added)
+                    _ThreadsScraperCard(),
+                    const SizedBox(height: 28),
+
                     // ── Trending Now
                     Row(
                       key: _keyTrendingNow,
@@ -776,4 +780,46 @@ class _RecommendationCard extends StatelessWidget {
   }
 }
 
-
+// ── Threads Scraper Card
+class _ThreadsScraperCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  border: Border.all(color: Colors.white24),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.alternate_email_rounded, color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text('Threads Engine 🔥',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Scrape trending Threads posts, select a topic, and generate viral videos instantly.',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.5),
+          ),
+          const SizedBox(height: 18),
+          GradientButton(
+            label: 'Explore Threads Trends 🚀',
+            onPressed: () => context.go('/threads-engine'),
+          ),
+        ],
+      ),
+    );
+  }
+}
